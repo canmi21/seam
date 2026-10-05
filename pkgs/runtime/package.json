@@ -1,30 +1,25 @@
 {
-	"name": "@seam-js/injector",
+	"name": "@seam-js/runtime",
 	"version": "0.0.1",
-	"description": "The IR's shape, and the runtime a route's program calls, for seamjs",
+	"description": "The runtime a route's program calls while it writes the bytes, for seamjs",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/canmi21/seam.git",
-		"directory": "pkgs/injector"
+		"directory": "pkgs/runtime"
 	},
 	"files": [
 		"dist"
 	],
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts",
-		"./runtime": "./src/runtime.ts"
+		".": "./src/index.ts"
 	},
 	"publishConfig": {
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
-			},
-			"./runtime": {
-				"types": "./dist/runtime.d.ts",
-				"default": "./dist/runtime.js"
 			}
 		},
 		"access": "public"

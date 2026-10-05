@@ -2,7 +2,7 @@
  * A `<svelte:boundary>` as `renderer.boundary` renders one: a `try`. See spec/ir.md, "A boundary is a
  * `try`".
  */
-import type { Node as IrNode } from '@seam-js/injector';
+import type { Node as IrNode } from './ir.ts';
 import { parsedExpression, type Node } from './rewrite.ts';
 import { type Env, json, metaFree, unwrapped } from './model.ts';
 import { own } from './names.ts';

@@ -11,13 +11,13 @@ import { newQuickJSWASMModuleFromVariant, newVariant, RELEASE_SYNC } from 'quick
 import { rolldown } from 'rolldown';
 import { describe, expect, it } from 'vitest';
 import { carriedBy, carry } from '@seam-js/carry';
-import { evaluated } from '@seam-js/injector/runtime';
+import { evaluated } from '@seam-js/runtime';
 import { expressionsOf, helpers } from '@seam-js/skeleton';
 import { script, type Structure } from './index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = resolve(here, '../../../corpus/cases');
-const runtimeEntry = fileURLToPath(import.meta.resolve('@seam-js/injector/runtime'));
+const runtimeEntry = fileURLToPath(import.meta.resolve('@seam-js/runtime'));
 
 /**
  * The runtime as one script assigning `__rt`, with `hydratable`'s record left out: it serialises

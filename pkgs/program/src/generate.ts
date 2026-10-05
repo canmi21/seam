@@ -8,7 +8,7 @@
  * as a scope stack becomes the program's own variables. The bytes are the ones the walk wrote, and
  * the suite holds the two together.
  */
-import type { Node as IrNode } from '@seam-js/injector';
+import type { Node as IrNode } from './ir.ts';
 import { boundaryState, patched } from './boundary.ts';
 import { derivationCode, orderedCode } from './derivations.ts';
 import { type CarriedNames, type Env, json, type Structure } from './model.ts';

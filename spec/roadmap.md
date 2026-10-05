@@ -197,7 +197,7 @@ Accepted when:
   1. **The program.** Written from the IR and derivations the lowering already wrote, each name
      resolved when it is written ([derivation.md](derivation.md), "A name is resolved when the
      program is written"); `derive` and the walk are gone, and what Svelte's bytes need of a runtime
-     is `@seam-js/injector/runtime`.
+     is `@seam-js/runtime`.
   2. **A boundary is a `try`** ([ir.md](ir.md), "A boundary is a `try`"), and its run is not
      evaluated. Two parts of the plan were not taken as written. The lowering still writes the run
      and the guards, which the program falls back on where it finds no body half, so they are kept

@@ -1,15 +1,15 @@
 /**
  * What a route's program calls while it writes the bytes: the parts of Svelte's server output that
- * are a rule rather than a value, and the few things the program needs of its host. The program is
- * written by `@seam-js/program` and handed this module whole. See spec/ir.md, "A route is one
- * program".
+ * are a rule rather than a value -- escaping, `hydratable`'s script, stepping through what waits --
+ * and the few things the program needs of its host. The program is written by `@seam-js/program`
+ * and handed this module whole. See spec/ir.md, "A route is one program".
  */
 import { thenable, waiting } from './drive.ts';
 import { escape } from './escape.ts';
-import * as self from './runtime.ts';
+import * as self from './index.ts';
 
 export { drive, thenable, waited, waiting } from './drive.ts';
-export { hydratables, script } from './hydratable.ts';
+export { type Csp, hydratables, script } from './hydratable.ts';
 
 /** A value written as character data, as Svelte's `escape_html` writes it. */
 export function ec(value: unknown): string {

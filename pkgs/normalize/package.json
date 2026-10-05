@@ -6,7 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@seam-js/injector": "workspace:*",
+		"@seam-js/program": "workspace:*",
 		"parse5": "^8.0.1"
 	}
 }

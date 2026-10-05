@@ -1,7 +1,7 @@
 //! Closes the loop the rewrite is built around.
 //!
 //! Three links, each guarded by one check: `pkgs/ast` holds Svelte's AST to a fixture, this
-//! holds lowering to the IR the specification describes, and `pkgs/injector` holds that IR to
+//! holds lowering to the IR the specification describes, and `pkgs/program` holds that IR to
 //! Svelte's own server output. Together they say that a component compiled here renders the
 //! bytes Svelte would have rendered, without any of Svelte running at request time.
 

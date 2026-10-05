@@ -3,7 +3,7 @@
  * them, the names the IR's blocks bind, the carried names the program has read, and the counters
  * its variables are named by.
  */
-import type { ComponentIR, Node as IrNode } from '@seam-js/injector';
+import type { ComponentIR, Node as IrNode } from './ir.ts';
 import { computes } from './rewrite.ts';
 import {
 	type CarriedNames,

@@ -1629,7 +1629,7 @@ writes every value it recorded into a `<script>` ahead of the head, for the clie
 instead of running `fn` again. A derivation runs outside any render. So the name is not Svelte's
 where a derivation reads it: the carried bundle stands a marked function in for the import
 (`carry.ts`), and the program binds every name so marked to the request's own `hydratable`, over a
-table made once per request (`hydratables` in `pkgs/injector/src/hydratable.ts`). The program
+table made once per request (`hydratables` in `pkgs/runtime/src/hydratable.ts`). The program
 writes that table as the script, byte for byte what `#hydratable_block` writes -- the values through
 Svelte's own devalue `uneval`, a promise as `r(...)` once it settles, `nonce` on the tag where the
 server hands one, and the tag's sha256 back as `hashes` where it asks for a hash instead. Nothing is

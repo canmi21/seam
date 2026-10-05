@@ -1,4 +1,5 @@
-import type { EscapeMode } from './ir.ts';
+/** Inside an element, or inside an attribute's quotes. */
+type EscapeMode = 'content' | 'attr';
 
 // Svelte's own sets, and its own loop, from svelte/src/escaping.js. `>` is escaped by neither,
 // and `"` only inside an attribute. Copied rather than reasoned about because the output has to

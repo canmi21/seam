@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from '@seam-js/carry';
 import { load, type Derivation } from './index.ts';
 import { expressionsOf, helpers } from '@seam-js/skeleton';
-import type { ComponentIR } from '@seam-js/injector';
+import type { ComponentIR } from './ir.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = resolve(here, '../../../corpus/cases');

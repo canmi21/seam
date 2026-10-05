@@ -2,7 +2,7 @@
  * A route's program: written from its IR and derivations at the build, and evaluated once a
  * process. See spec/ir.md, "A route is one program".
  */
-import * as runtime from '@seam-js/injector/runtime';
+import * as runtime from '@seam-js/runtime';
 import { type CarriedNames, generate, type Structure } from './generate.ts';
 
 export {
@@ -13,7 +13,8 @@ export {
 	type Source,
 	type Structure,
 } from './generate.ts';
-export type { Render } from '@seam-js/injector/runtime';
+export type { Render } from '@seam-js/runtime';
+export type { Branch, ComponentIR, EscapeMode, Node, Presence, Scope } from './ir.ts';
 
 const MARK = Symbol.for('seam.hydratable');
 

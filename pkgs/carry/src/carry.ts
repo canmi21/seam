@@ -23,7 +23,7 @@ import { moduleScripts } from './module-scripts.ts';
 /**
  * What stands for Svelte's `hydratable` in a carried file: a function that says what it is if it
  * is ever called unbound, marked so the program finds the names it stands under and binds them to the
- * request's `hydratable` instead. See `hydratables` in the injector's runtime.
+ * request's `hydratable` instead. See `hydratables` in `@seam-js/runtime`.
  */
 const HYDRATABLE_MARK =
 	"Object.assign(() => { throw new Error('hydratable is bound per request by derive'); }, " +

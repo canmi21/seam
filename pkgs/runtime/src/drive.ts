@@ -4,7 +4,7 @@
  * A step that yields a thenable is resumed with what it settles to. Until one does, this is a loop
  * and returns the value itself, so an artifact with nothing to await injects exactly as it did;
  * the first thenable turns the rest into a promise. One implementation for both, since the
- * alternative is a second injector that has to agree with the first.
+ * alternative is a second program that has to agree with the first.
  *
  * What yields one is an `await` in a derivation, which an artifact holds only where the project is
  * in Svelte's async mode and the value is one the build can know. See spec/derivation.md.

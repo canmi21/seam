@@ -320,9 +320,6 @@ importers:
       '@seam-js/carry':
         specifier: workspace:*
         version: link:../carry
-      '@seam-js/injector':
-        specifier: workspace:*
-        version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering
@@ -394,19 +391,13 @@ importers:
         specifier: link:.
         version: 'link:'
 
-  pkgs/injector:
-    dependencies:
-      svelte:
-        specifier: '*'
-        version: 5.57.1
-
   pkgs/lowering: {}
 
   pkgs/normalize:
     dependencies:
-      '@seam-js/injector':
+      '@seam-js/program':
         specifier: workspace:*
-        version: link:../injector
+        version: link:../program
       parse5:
         specifier: ^8.0.1
         version: 8.0.1
@@ -419,15 +410,15 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/injector':
-        specifier: workspace:*
-        version: link:../injector
       '@seam-js/program':
         specifier: workspace:*
         version: link:../program
       '@seam-js/routes':
         specifier: workspace:*
         version: link:../routes
+      '@seam-js/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@seam-js/skeleton':
         specifier: workspace:*
         version: link:../skeleton
@@ -450,9 +441,9 @@ importers:
 
   pkgs/program:
     dependencies:
-      '@seam-js/injector':
+      '@seam-js/runtime':
         specifier: workspace:*
-        version: link:../injector
+        version: link:../runtime
       acorn:
         specifier: ^8.18.0
         version: 8.18.0
@@ -485,6 +476,12 @@ importers:
         specifier: ^8.3.2
         version: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)
 
+  pkgs/runtime:
+    dependencies:
+      svelte:
+        specifier: '*'
+        version: 5.57.1
+
   pkgs/skeleton:
     dependencies:
       '@seam-js/ast':
@@ -497,9 +494,6 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/injector':
-        specifier: workspace:*
-        version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering
@@ -527,9 +521,6 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/injector':
-        specifier: workspace:*
-        version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering

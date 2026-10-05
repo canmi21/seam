@@ -1,4 +1,4 @@
-//! The shape `spec/ir.md` describes, and the shape `pkgs/injector` walks.
+//! The shape `spec/ir.md` describes, and the shape `pkgs/program` writes a route's program from.
 
 use std::collections::BTreeMap;
 

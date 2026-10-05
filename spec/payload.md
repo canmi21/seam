@@ -125,7 +125,7 @@ payload, which stays `stringify` and a `<script type="application/json">`. So `c
 `uneval` beside `stringify`, held to the npm package the same way.
 
 **Today the script is written by the npm devalue Svelte itself depends on, and the crate is not
-involved.** The injector resolves `devalue` from where Svelte sits (`pkgs/injector/src/hydratable.ts`),
+involved.** The runtime resolves `devalue` from where Svelte sits (`pkgs/runtime/src/hydratable.ts`),
 so the bytes are Svelte's whatever this repository pins. The two can differ by a major: Svelte
 5.57.1 declares `^5.9.2` and resolves 5.9.4 while the pin is 6.x, and 6.0 changed how `uneval`
 writes a shared value. Only a Rust backend writing this script would have to match Svelte's major

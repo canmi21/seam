@@ -289,7 +289,7 @@ function dispatcher(
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
 	// repository's package names mean nothing.
-	const runtime = here.resolve('@seam-js/injector/runtime');
+	const runtime = here.resolve('@seam-js/runtime');
 	// The bundler writes each reference as the asset's URL relative to the chunk it ends up in.
 	const files = [...emitted]
 		.map(([name, ref]) => `${JSON.stringify(name)}: import.meta.ROLLUP_FILE_URL_${ref}`)

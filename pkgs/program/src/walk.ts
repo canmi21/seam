@@ -3,7 +3,7 @@
  * escaped, an if as an `if`, an each as a loop over what Svelte's `ensure_array_like` makes of its
  * source, and a call as a function of the fragment's parameters. See spec/ir.md.
  */
-import type { Node as IrNode } from '@seam-js/injector';
+import type { Node as IrNode } from './ir.ts';
 import { boundary, boundaryOf } from './boundary.ts';
 import { type Env, json, local } from './model.ts';
 import { rootRead } from './names.ts';

@@ -29,5 +29,5 @@ Prose. The specification, commit messages and documentation name the project as 
 need to, because there the name is the subject rather than a decoration.
 
 Package and crate names are also outside it, in the sense that they are already neutral --
-`injector`, `server`, `ast`, `program`, `lowering` -- and a published name is a distribution
+`runtime`, `server`, `ast`, `program`, `lowering` -- and a published name is a distribution
 question rather than a naming one, answered in [publish.md](publish.md).

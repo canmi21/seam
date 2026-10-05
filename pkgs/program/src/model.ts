@@ -2,7 +2,7 @@
  * What the program is written from, and what every part of writing it shares: the derivations as
  * the lowering names them, what the carried bundle holds, and the places a name is resolved from.
  */
-import type { ComponentIR } from '@seam-js/injector';
+import type { ComponentIR } from './ir.ts';
 import { parsedExpression, type Node } from './rewrite.ts';
 
 export type Source = { path: string } | { literal: string };

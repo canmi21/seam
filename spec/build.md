@@ -201,7 +201,7 @@ forgets to update.
 
 `<route>.js` is the carried bundle -- the functions the expressions call, assigning `__carried` --
 and the route's program after it, assigning `__program`. A backend evaluates it once a process and
-calls what it returns once a request: `evaluated()` in `@seam-js/injector/runtime` hands the program
+calls what it returns once a request: `evaluated()` in `@seam-js/runtime` hands the program
 that module, which is everything it calls, so the script imports nothing and has no module loader
 to need. It is still an **artifact**, not part of the server program, and it does not get bundled
 into one: a Rust backend evaluates this file too, in QuickJS, with a runtime of its own beside it,

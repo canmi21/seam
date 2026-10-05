@@ -9,8 +9,7 @@
  * already and nothing above it has to learn a new shape. Which of the two a project ships is a
  * deployment choice and can be taken later; this is the compilation either way.
  */
-import type { Derivation } from '@seam-js/program';
-import type { Branch, ComponentIR, Node } from '@seam-js/injector';
+import type { Branch, ComponentIR, Derivation, Node } from '@seam-js/program';
 import { javascript } from '@seam-js/lowering';
 
 /**
@@ -18,7 +17,7 @@ import { javascript } from '@seam-js/lowering';
  *
  * `lowering` returns it as `unknown`, because crossing WebAssembly hands back JSON and nothing on
  * that side knows what it means. Joining several does know: it walks the nodes and renames what it
- * finds, so it reads them as the types the IR's own package declares. Both halves of the build
+ * finds, so it reads them as the types the program package declares. Both halves of the build
  * therefore agree by reading one declaration rather than by being kept in step.
  */
 export interface Structure {
@@ -313,7 +312,7 @@ export function joined(
 	//
 	// **A call inherits the scope it sits in**, adding a frame of its own for what it binds, so a
 	// hoisted node reads what it read where it was written -- an each's item, a scoped derivation,
-	// a title's place in the order -- and binds nothing. See `case 'call'` in `pkgs/injector`.
+	// a title's place in the order -- and binds nothing. See the `call` node in `pkgs/program/src/walk.ts`.
 	//
 	// It is marked `shared`, which is what says it takes no frame of its own. A frame is for a
 	// fragment with parameters, and one here would capture what a `fresh` slot writes into the

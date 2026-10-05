@@ -45,7 +45,7 @@ export type Node =
 			 * keeps the title in a channel and `set_title` keeps the one whose render path compares
 			 * later; a head block is hoisted ahead of its fragment, so the last head block executed
 			 * wins and, inside it, the first title executed -- a top-level one before any inside a
-			 * block. The injector applies the rule and appends the winner after the head. See
+			 * block. The program applies the rule and appends the winner after the head. See
 			 * spec/ir.md.
 			 */
 			t: 'title';

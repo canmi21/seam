@@ -45,7 +45,7 @@ walk a generator stepping every node. On `status` that was about 91,000 evaluati
 proxy traps a request, and a request cost three times Kit's; the program costs what Kit's render
 does ([conformance.md](conformance.md), "Stage 3"). What Svelte's bytes need of a runtime and are
 rules rather than values -- escaping, `hydratable`'s script, stepping through what waits -- stays a
-library the program is handed, `@seam-js/injector/runtime`, so the program imports nothing.
+library the program is handed, `@seam-js/runtime`, so the program imports nothing.
 
 The program is a script, sloppy as `new Function` makes it since the expressions are the author's
 own and were evaluated so; it holds no `with`, reads nothing of Node's host, and the carried bundle

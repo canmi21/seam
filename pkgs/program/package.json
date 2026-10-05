@@ -25,7 +25,7 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@seam-js/injector": "workspace:*",
+		"@seam-js/runtime": "workspace:*",
 		"acorn": "^8.18.0"
 	},
 	"devDependencies": {
