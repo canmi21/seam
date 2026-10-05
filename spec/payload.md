@@ -78,12 +78,12 @@ stage puts in those props.
 
 ## The render's input and the hydration wire are two things
 
-**The payload used to be both**: what derive and inject read per request, and what is serialised
+**The payload used to be both**: what the derivations and the injector read per request, and what is serialised
 into the page for the browser to hydrate from. The second role made the first data-only, so a store,
 a promise, a component or a render option's function could not reach the server render at all --
 where Svelte's own `render()` takes any value as a prop. **They are split.**
 
-- **The render input** is what derive and inject read: the root's props as the load stage built
+- **The render input** is what the program reads: the root's props as the load stage built
   them, and the render options the server passes, Kit's CSP and a `transformError` among them. Any
   JavaScript value is one. Both backends hold them: a Rust or Go server embeds QuickJS, which lacks
   a host and not the language, so a function, a store and a promise are values there as they are in
@@ -161,7 +161,8 @@ and `<svelte:component this={x}>` over one the request hands in renders it. What
 on which component that can be -- one the source names, or one the route's universal `load`
 imports, which is the source of the value a page is handed ([framework.md](framework.md), "A
 component a `load` returns") -- since rendering whatever component a request sends would be
-running Svelte's renderer per request, the fallback [refusals.md](refusals.md) refuses.
+running Svelte's renderer per request over a component no build saw, which no artifact could name
+as SSR ([together.md](together.md)).
 
 **Where neither names it, it compiles, as Svelte's own does.** A value that is nothing renders
 nothing, the bytes Svelte writes for it, and anything else throws per request, since the artifact
@@ -232,7 +233,7 @@ mechanism it loses to a declaration, which carries types as well as names.
 ## Names
 
 `data` is what the load stage produces. The **render input** is the root's props and the render
-options, any JavaScript value, read by derive and inject. The **wire** is what crosses to the
+options, any JavaScript value, read by the program. The **wire** is what crosses to the
 client, data only. `payload` is the render input plus the derived fields, exists only between
 deriving and injecting, and is never serialized. The two were one word for both until this file,
 and the render input and the wire were one thing until the section that splits them.

@@ -254,8 +254,10 @@ A child is spliced into its parent at compile time, with its paths rewritten.
 runtime has no notion of a component, and the injector did not change to gain one.
 
 That works only because every prop value is already a path or a literal, which is the same
-constraint the protocol places on everything else. A prop that mixes text and an expression is
-refused: it has no value to pass until something computes one.
+constraint the protocol places on everything else. A prop that mixes text and an expression was
+refused, having no value to pass until something computed one; it is the template
+`build_attribute_value` builds now (the struck row of [readings.md](readings.md)'s table for a
+quoted attribute holding one expression).
 
 The unit is still the component. A bundle carries the entry and everything reachable from it,
 and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
@@ -556,7 +558,7 @@ hole, and that was the request-time half's cost until the walk became the progra
 
 `data.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
-what evaluates the predicate is a stage that runs before injection. See
+what evaluates the predicate is the derivation, computed when the program first reads it. See
 [pipeline.md](pipeline.md) for why, and [derivation.md](derivation.md) for what such an expression
 is allowed to be a function of. Elements, enums and nullables are finite decisions and belong in
 the protocol; predicates over open value spaces are not, which is the correction the second
@@ -600,13 +602,17 @@ way.
 
 ## One IR per component
 
+_Superseded by "A route is one program", above: the build writes one IR and one program per route,
+the components composed into it at compile time. What follows is the first plan._
+
 **The unit is the component, and page IR is composed from component IR.** A page-level flat tree
 would be simpler today and impossible to fix later, because CTR's unit is the static component
 graph rather than the file.
 
-Svelte wraps every component render in `<!--[-->` and `<!--]-->`, so the composition seam and the
-output seam are the same place. That is not a coincidence: both describe where one component's
-output ends.
+It read Svelte as wrapping every component render in `<!--[-->` and `<!--]-->`, so that the
+composition seam and the output seam were the same place. A static call writes nothing around
+itself; only a dynamic one does ([refusals.md](refusals.md), "`block_open` is written in five
+places").
 
 ## The head is a second stream
 
@@ -784,9 +790,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   snippet declared beside it is inlined. What stays refused is in [refusals.md](refusals.md): a
   render of a snippet that arrived as a prop, and a passed snippet that reads a parameter as a
   value where the component writes it.
-- **A title inside a block, and more than one title.** Both need a rule for which title wins,
-  which is stated here rather than taken from Svelte, whose own rule is not derivable. Overriding
-  across a route and its layout is the same question one level up, and depends on routing.
+- **Which title wins across a route and its layout.** Within a page it is Svelte's rule, derived
+  ("Which title wins is Svelte's rule, and it is derivable", above); across a route and its layout
+  it is the same question one level up, and depends on routing.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.

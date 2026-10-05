@@ -132,8 +132,8 @@ that can. Declaring either evaluates nothing, so neither is neutralised for the 
 
 A destructuring is the same substitution with the way in written after it: `a` out of
 `const { a, b: c } = data.t` expands to `((data.t).a)` and `c` to `((data.t).b)`, and `x` out of
-`const [x] = data.t` to `((data.t)[0])`. A default and a rest are neither a member nor an index
-and are left out, which reports the name rather than guessing at it.
+`const [x] = data.t` to `((data.t)[0])`. A default, a rest and a nesting are written too, as a
+template rather than a suffix: "A script's own pattern is the same question, answered twice", below.
 
 A render is given no data, so a declaration reading a prop is handed something harmless in the
 source the compiler renders -- `null`, or `{}` and `[]` where it was destructured, since a
@@ -455,20 +455,15 @@ carries `push` and `pop` of Svelte's component context, from the copy of Svelte 
 reach -- by file, since Svelte exports neither (`rendering()` in `pkgs/carry/src/carry.ts`) -- and the
 program enters one around its run, and around each step after it waits.
 
-## The payload is frozen
+## A derivation reads the request, and may read another
 
-`(p.price = 999)` evaluated successfully, changed the payload in place, and was visible to every
-derivation after it. That is not a matter of taste; a function does not modify its argument. The
-payload is frozen before the derive stage runs.
-
-## Derivations do not see each other
-
-Each derivation is a function of the payload alone and cannot read another's result. That they
-currently can is an artefact of accumulating into one object, not a decision.
-
-Independence keeps **evaluation order out of the protocol**, so two backends cannot disagree by
-evaluating in different orders. Recomputation is the cost and it is not worth avoiding; the
-compile-time substitution above already removes the case where sharing would have mattered.
+_This replaces two sections, which said the payload is frozen before a derive stage runs, and that a
+derivation is a function of the payload alone and cannot read another's result. Neither holds
+now._ No stage computes the derivations up front: a derivation is computed when the program first
+reads it ("A derivation is computed when it is read, and not before", below), and one may
+name another -- `__d1` is `(__d0).includes(item)` ("Held means one derivation, named, and read by
+that name", below). Evaluation order stays out of the protocol because it is the program's render
+order, which both backends run as one script.
 
 ## A rune is an ordinary declaration
 
@@ -698,10 +693,10 @@ directly used to; everything else is a derivation over the binding, which is wha
 reading an each's name already is. The IR node is one shape either way, which is what
 [ir.md](ir.md) records.
 
-**A declaration in the script still takes only a member or an index.** `const { a, ...rest } = t`
-there is reported by name, and the entry under Open below is that gap. The difference is where the
-value comes from: a markup binding takes it apart from an expression this pass writes and holds,
-and a declaration takes it apart from an initialiser another pass substitutes by span.
+**A declaration in the script takes the same patterns**, defaults and rests included ("A script's own
+pattern is the same question, answered twice", above). The difference is where the value comes
+from: a markup binding takes it apart from an expression this pass writes and holds, and a
+declaration takes it apart from an initialiser another pass substitutes by span.
 
 ### The pattern the render sees
 
@@ -1148,9 +1143,9 @@ is the sample, and it never settled before this.
 **What it does not reach.** A value the render _mutates_ is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
 is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
-the empty object, not the filled one. That is a program per request, a gap that waits on the rule
-at the top of this file, and [readings.md](readings.md) has the reading, under "A value the render
-changes".
+the empty object, not the filled one. The script run answers it, one run per request ("Where
+substitution cannot follow, the script runs as Svelte compiled it", below), and
+[readings.md](readings.md) has the reading, under "A value the render changes".
 
 ### A hold may name the child's chain, and that is how a value crosses back up
 
@@ -1433,8 +1428,8 @@ declaration this pass substitutes, the read is that value -- `get` from `svelte/
 the other helpers, which subscribes, takes the value and unsubscribes at once. Svelte's own is not
 usable here: it hangs the subscription on a teardown a derivation has not got.
 
-Where `foo` is what the request brought, this does not apply and the subscription stays refused: a
-store is an object with a `subscribe` function and the payload carries data.
+Where `foo` is what the request brought, it is the same read per request: the render input holds a
+store as it holds any value, and only the wire carries data alone ([payload.md](payload.md)).
 
 **A prop is a store like any other, and the name check said otherwise.** `build_getter` reads a
 `store_sub` binding as `store_get($$store_subs ??= {}, '$foo', <what foo is>)` and puts _what foo
@@ -1607,7 +1602,8 @@ that were passing. What it does not see is a function handed to something else t
 
 The fix rather than the refusal is to stop substituting such a name and bind it once per request,
 which the derivation machinery could hold since a derivation is already evaluated once and cached.
-That is a change to what substitution is, not a patch to this rule, and it is not made here.
+That is a change to what substitution is, not a patch to this rule; the script run is where it was
+made ("Where substitution cannot follow, the script runs as Svelte compiled it", below).
 
 ## A name a statement reading the request changes is the request's
 
@@ -1619,8 +1615,8 @@ hydratable(...)` over a prop wrote the other branch's value without a word, and 
 it threw inside the render; `$: if (modify) settings.fontSize = 50` baked 12px for every request,
 which was right only for the one value the suite sends. So a name a top-level statement reading
 the request assigns or mutates varies (`movedBy()` in `awaits.ts`), a read of it becomes one this
-compiler writes, and the rule about a value the render changes refuses it there: a program per
-request, owed and waiting on the rule at the top of this file.
+compiler writes, and the script run answers it, one run per request ("Where substitution cannot
+follow, the script runs as Svelte compiled it", below).
 
 ## `hydratable` is the request's, and its calls are made whether or not anything reads them
 
@@ -1840,9 +1836,9 @@ held, so a change one read makes is not seen by the next. A write into the objec
 stays refused: a read of it is written out as Svelte's own helper, not as a name the run could hand
 back.
 
-**It stays a pure function of the render input.** Its inputs are the props and the module scope;
-what reads a clock, a host global or module state its own module changes is refused as before, and
-those are the question "Ambient input is read at request time, never at the build" above decides.
+**It stays a function of the render input.** Its inputs are the props and the module scope, and a
+clock or a host global it reads is read per request, as "Ambient input is read at request time, never
+at the build" above decides; what reads module state its own module changes is refused as before.
 
 ## A value the request does not decide is the build's, however it is computed
 
@@ -1906,12 +1902,10 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **A default or a rest inside a destructuring.** `const { a = 1 } = t` and
-  `const { a, ...rest } = t` both leave a name that is not a member of anything, and a default
-  fires only on `undefined` where `??` would also catch `null`, so writing one as the other would
-  be wrong rather than partial. Both are reported by name.
+- **A default or a rest inside a destructuring.** _Done_: see "A script's own pattern is the same
+  question, answered twice". The measurement that ranked it stands.
 
-  It is the largest thing standing between the compiler and components people have already
+  It was the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or
   `class={tv({...})}` -- a call, producing a string, in a substitution position the pipeline
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry

@@ -124,8 +124,8 @@ interface Binding {
 /**
  * The data with every raw field replaced by what a parser makes of it.
  *
- * A copy rather than a rewrite: the payload is frozen before the stage that reads it, and a stage
- * that modifies its input is the thing this protocol says a derivation may not be.
+ * A copy rather than a rewrite: the data is the load stage's, and the render reads it as it was
+ * handed.
  */
 export function normalized(data: Scope, paths: readonly RawPath[]): Scope {
 	if (paths.length === 0) return data;

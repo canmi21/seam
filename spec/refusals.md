@@ -79,6 +79,11 @@ stopping for, and none has been found.
 
 ## Request-time rendering is declared, in milestone B
 
+_Superseded in part by [together.md](together.md), the user's decision: B was taken forward before
+A's acceptance, the declaration is `export const seam = 'ssr'` in a component's module script, and an
+undeclared component the compiler refuses is rendered by SSR rather than failing the build. What
+follows is the plan as it stood._
+
 Request-time rendering beside compile-time is milestone B of [roadmap.md](roadmap.md) --
 synchronous first, asynchronous straight after -- and **it is not started before milestone A is
 accepted**: A changes when the UI is rendered and nothing else, and the first mode has to be the one
@@ -125,17 +130,17 @@ list kept beside it, and a row that disagrees with the check is the row that is 
 
 A list nobody runs is a claim. The check is the list, and this file keeps only the reasoning:
 
-|                                                                                                  |                                                                                                                                                                                                                                    |     |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| `{@render}` of a snippet that arrived as a prop, `children` included                             | the body was written at the call site, which is composition in the other direction                                                                                                                                                 | gap |
-| a snippet passed to a component with parameters, and one the component supplies a value to       | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles                                                                                         | gap |
-| a boundary whose pending snippet is a prop                                                       | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value                                                                                                                     | gap |
-| a value a child transforms, and one it takes and never writes                                    | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so                                                                                     | gap |
-| a component the request chooses                                                                  | a structure, and this one is not enumerable                                                                                                                                                                                        | gap |
-| a head reached from a component inside a body, and a fragment that renders itself around one     | the head stream has no call there                                                                                                                                                                                                  | gap |
-| a block inside a table whose stylesheet relates siblings                                         | the stamp that says which block closed cannot be text there, and the scoping class reads siblings                                                                                                                                  | gap |
-| `page` imported under another name in the entry                                                  | a rename is bound at a call, and the entry has none                                                                                                                                                                                | gap |
-| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression; running the statements per request is what the server render does, and [derivation.md](derivation.md)'s Open section holds what that has to answer | gap |
+|                                                                                                                    |                                                                                                                                                                                                                                                           |     |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| `{@render}` of a snippet that arrived as a prop, `children` included                                               | the body was written at the call site, which is composition in the other direction                                                                                                                                                                        | gap |
+| a snippet passed to a component with parameters, and one the component supplies a value to                         | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles                                                                                                                | gap |
+| a boundary whose pending snippet is a prop                                                                         | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value                                                                                                                                            | gap |
+| a value a child transforms, and one it takes and never writes                                                      | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so                                                                                                            | gap |
+| a component the request chooses                                                                                    | a structure, and this one is not enumerable                                                                                                                                                                                                               | gap |
+| a head reached from a component inside a body, and a fragment that renders itself around one                       | the head stream has no call there                                                                                                                                                                                                                         | gap |
+| a block inside a table whose stylesheet relates siblings                                                           | the stamp that says which block closed cannot be text there, and the scoping class reads siblings                                                                                                                                                         | gap |
+| `page` imported under another name in the entry                                                                    | a rename is bound at a call, and the entry has none                                                                                                                                                                                                       | gap |
+| a name assigned or an object mutated after it is declared, where the statements read the request, in a child's run | the entry's script run answers it ([derivation.md](derivation.md), "Where substitution cannot follow, the script runs as Svelte compiled it"); a child's run is written at each read rather than held, so a change one read makes is not seen by the next | gap |
 
 Every row is a gap, which is the rule at the top of this file. Two used to be marked as decisions,
 and neither was. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
@@ -1101,6 +1106,12 @@ stopped the boundary catching at all. It is copied inside the tag now, the way `
 was, renamed to `failed` -- the name `SvelteBoundary.js` looks for in the fragment -- and with its
 parameters kept, since the snippet is called with the error.
 
+_Superseded by [ir.md](ir.md), "A boundary that may throw is a block of its own, and a `try` in the
+program": `transformError` is a render option the server passes, and the program reads it per
+request, so a boundary with a `failed` snippet is a decision the program makes. What follows is the
+reading as it stood; a throw from inside a block, a component or a render tag in the body is what is
+still refused, and `render.ts` says so._
+
 That does not make the samples that throw compile, and the reason is what settles them. The `failed`
 snippet is written **through `transformError`**, and `Renderer`'s default one rethrows. A server
 passes its own; an artifact holds bytes and has nowhere to put a function that maps an error to what
@@ -1297,15 +1308,17 @@ value, which runs once before either branch and so opens both.
 **Legacy mode was measured before it was rewritten, and split three ways.** The plan was one
 pre-pass turning Svelte 4's spellings into runes and letting the walk know one shape. Measured
 against Svelte's server output for each: `export let n; export let label = 'x'` renders byte for
-byte what `let { n, label = 'x' } = $props()` renders, so it is rewritten before anything reads
-the file (`runed()` in `legacy.ts`) and every pass after knows one shape of prop. `$store` renders
+byte what `let { n, label = 'x' } = $props()` renders. It was rewritten before anything read the
+file, by a `runed()` since removed: `propsOf` reads `export let` itself now ([readings.md](readings.md),
+"Done, and `runed()` is gone"). `$store` renders
 the same bytes in legacy and runes mode, so it is not a legacy question at all but a store read,
 listed on its own. And `<slot>` with a fallback and a named slot filled with `let:` does **not**
 render what the snippet spelling renders: `$.slot` writes `<!--[-->` and `<!--]-->` around the
 filling and around the fallback, and `<i slot="side">` keeps its attribute, where `{@render}` and
 a `{#snippet}` write neither. A rewrite there would compile a component to bytes Svelte never
-sends, so slots stay refused in the walk and wait to be read out of `SlotElement.js` as a block
-of their own. `$:` runs on the server as a plain statement, and the one that assigns from request
+sends, so slots were refused in the walk until they were read out of `SlotElement.js`; they are
+done now ([readings.md](readings.md), "Slots: done, and the three rules read out of
+`SlotElement.js`"). `$:` runs on the server as a plain statement, and the one that assigns from request
 data is the per-request script already decided against.
 
 **Async Svelte was refused by decision, and is compiled now.** `{await p}` in markup used to
@@ -1674,12 +1687,12 @@ narrowed to where the problem was.
 **A named or parameterised snippet inside the tag.** It arrives under its own name and may be
 called with arguments the caller does not choose, which is the shape already refused.
 
-**A spread at the call site**, for the reason the spread section gives: the props are keys the walk
-cannot enumerate.
+**A spread at the call site** was here, for the reason the spread section gives; it is bound by what
+the child declares now ("A spread of an object the request hands over whole is bound by what the
+child declares", above).
 
-**A component from a package.** Its file is not one this compiler is arranged to rewrite, and
-Svelte renders it as before -- which, measured across the 4157 components press installs, is what
-already works.
+**A component from a package** was here too; the walk enters one now ("The walk enters a package's
+component, and what it took to", above).
 
 ## What a child may do with what it is given, measured across every shape
 
@@ -1803,8 +1816,9 @@ bytes bundled, its only host references `globalThis.process?.env?.NODE_ENV` and
 `globalThis.document?.contentType`, both optionally chained, which is the same shape and the same
 terms `attributes` is carried on.
 
-Still refused: a directive mixing text with an expression, because Svelte joins them into one value
-and this reads a single expression.
+A directive mixing text with an expression was refused here, because Svelte joins them into one
+value and this read a single expression; it is written now, as that one value ("`style:` mixing
+text and an expression", below).
 
 Of press's 41 components, 20 compiled and now 22 do.
 
@@ -2026,8 +2040,10 @@ composition, which is built, and every wrapper's `{...restProps}` is now this co
 rather than Svelte's to resolve. Both conditions came due, and the cost was the one measured
 above: `attributes` and what it reaches, in the derivation bundle both backends run.
 
-What stays refused beside it is listed where the mechanism is: a `class:` or `style:` directive on
-the same element, an attribute mixing text with an expression, and `{...}` on a `<svelte:element>`.
+What was refused beside it -- a `class:` or `style:` directive on the same element, an attribute
+mixing text with an expression, and `{...}` on a `<svelte:element>` -- is the same call now, written
+where the mechanism is; what stays refused beside a spread is what is not an attribute, a spread or
+a directive -- a `bind:`, say.
 
 ## `{#key}` is the client's, and an each's `{:else}` is a second shape
 
@@ -2082,7 +2098,10 @@ that; measured, an if opens with `<!--[0-->` and `<!--[-1-->` where an await ope
 `<!--[-->` and `<!--[!-->`, so the bytes would have been wrong and the hydrating client would
 have found a block it did not expect.
 
-**`<svelte:boundary>`.** Read out of `3-transform/server/visitors/SvelteBoundary.js`. On the
+**`<svelte:boundary>`.** _Its `failed` snippet is written now, as a block of its own: [ir.md](ir.md),
+"A boundary that may throw is a block of its own, and a `try` in the program". What follows is the
+first reading, which is still the shape of a boundary that does not throw._ Read out of
+`3-transform/server/visitors/SvelteBoundary.js`. On the
 server a boundary is one shape and not a decision: `<!--[-->`, its children, `<!--]-->` -- or,
 given a `pending` snippet, `<!--[!-->`, that snippet's body, `<!--]-->` and none of the children,
 because a synchronous render is pending by definition. The `failed` snippet is never written:
@@ -3051,11 +3070,11 @@ is broken and the cost of preventing that was a parse.
 The one place the decision is visible to a backend is `escape: false` on a `slot`, which means
 write these bytes as they are. See [ir.md](ir.md).
 
-**A development build is a separate output and is not produced.** Under Svelte's development
-runtime, `{@html}` writes a hash of the value into the opening anchor so its client can warn when
-the two sides disagree. A hash of the value is a decision position, so the compiler cannot write
-one, and what it produces is the production form: an empty anchor, which the client's check
-returns from on its first line. See [pipeline.md](pipeline.md) for what a sentinel can and cannot
+**A build is the production form.** Under Svelte's development runtime, `{@html}` writes a hash of
+the value into the opening anchor so its client can warn when the two sides disagree. A hash of the
+value is a decision position, so a build's render cannot bake one, and what a build produces is the
+production form: an empty anchor, which the client's check returns from on its first line. The dev
+server's check writes the hash per request, below. See [pipeline.md](pipeline.md) for what a sentinel can and cannot
 stand in for.
 
 **Which runtime is loaded is not the compiler's to assume, so it is checked.** It comes from

@@ -201,8 +201,9 @@ that moves fails the run. See [suite.md](suite.md).
 **This is the stage that decides whether the version is usable, and it is the one being worked.**
 Stage 1 proved the render; this proves the framework around it the way Kit's own authors exercise
 it, with nothing of this repository's own standing in for an application. Green here is the
-first two of milestone A's checks, and so part of the condition for the first release and for
-starting B -- [roadmap.md](roadmap.md), "Four milestones, and what accepts each".
+first two of milestone A's checks, and so part of the condition for the first release and, as
+planned, for starting B ([roadmap.md](roadmap.md), "Four milestones, and what accepts each"). B was
+taken forward before it, the user's decision ([together.md](together.md)).
 
 Not started before stage 1 was done, which it now is. **It targets SvelteKit 3, not 2.** Kit 3 is
 on npm as `@sveltejs/kit@next` -- `3.0.0-next.29` the day this was decided, upstream's `main` --
@@ -458,7 +459,8 @@ throws".
 
 **Under the dev server, every page compared the same way.** `mise run compare-dev -- --app=<name>`
 stages the app twice as `compare` does and serves each under `vite dev` rather than building it --
-Kit's own, and the fork's, which compiles a route as a request asks for it -- asking Kit's server
+Kit's own, and the fork's, which answers with Kit's render and checks the route's program behind it
+-- asking Kit's server
 for each URL, then ours, then Kit's again. Two dev servers of one app differ in more than two builds
 do, and it is written out before comparing: where each one's files and Kit sit, which the boot
 script imports by path; the port; the version Kit names a server by, the time its config was read
@@ -469,7 +471,9 @@ that carries that stamp, so a page the same once those ids are written out is co
 a page Kit's own two answers disagree on is checked to differ from Kit's first only in numbers and
 CSP nonces.
 
-**All twelve apps, every page the same.** Of 810 URLs, 748 are the same, one -- `async`'s
+**All twelve apps, every page the same.** Measured while the fork's dev server answered with the
+program, before it answered with Kit's render; under the shadow check every page is Kit's by
+construction, and what is measured is what the check says, below. Of 810 URLs, 748 are the same, one -- `async`'s
 `remote-lib` -- the same but for a dependency's remote id, and 61 unstable in Kit's own answers,
 of which ours is one of Kit's for 16 and differs from Kit's first in numbers and nonces alone for
 the other 45: clocks, randoms, a counter Kit's server was asked twice for, a nonce per request. None
@@ -477,9 +481,11 @@ different. Under `--kit-root=throw` the same, but for a page a `load` fetches fr
 `embed`'s two, `options-2`'s `fetch-prerendered` -- on its first request, which the middleware never
 sees ([build.md](build.md), "The dev server answers with Kit's render, and CTR is checked behind it").
 
-The referee is on throughout ([build.md](build.md), "How it keeps itself right"), and across the
-twelve apps it disagreed with Kit's render nowhere; `compare-dev` counts what it said, and a
-disagreement fails the run as a different page does, since the page it answers with is Kit's.
+The check is on throughout ([build.md](build.md), "How it keeps itself right"). Under the shadow
+check, on 2026-10-05, the twelve apps' 810 URLs came out as before -- 748 the same, `remote-lib`
+the same but for its remote id, 61 unstable in Kit's own answers, none different -- and the check held 731 renders to Kit's and
+disagreed with none; `compare-dev` counts what it said, and a disagreement fails the run as a
+different page does, since the page it answers with is Kit's.
 
 What it closed on the way: a `{@html}` anchor written as a hash of a marker; a carried run whose
 copy of Svelte was not the render's; a route `reroute` names; a path decoded otherwise than Kit's
@@ -553,7 +559,8 @@ both.
 
 **Under `vite dev` as well.** `.local/status/dev.ts` serves both copies under the dev server over
 the same data and clock: `/`, `/?range=hours`, `/?range=minutes` and a page that is not there are
-Kit's byte for byte, none reaching Kit's root, and a warm request of `/` is 86 ms under either. What
+Kit's byte for byte, none reaching Kit's root while the program answered, and a warm request of `/`
+is 86 ms under either. What
 the dev server costs is the compile, which [build.md](build.md), "What it costs, on `status`",
 records. The copy installs the fork as the alias would rather than linking it whole, with its peers
 the application's: linked whole it reached its own Vite, and Kit's dev server, which asks whether

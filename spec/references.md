@@ -39,9 +39,10 @@ at all. See [ir.md](ir.md) and [pipeline.md](pipeline.md).
 instead of writing the bytes itself. Writing them was tried first and cost four undocumented
 positional rules before the first real component. See [pipeline.md](pipeline.md).
 
-**Svelte's `set_title`.** Looked at for a precedence rule between two titles, and _not_ copied:
-two readings of it each disagreed with what it measurably does. More than one title is refused
-rather than guessed at. See [ir.md](ir.md).
+**Svelte's `set_title`.** Looked at for a precedence rule between two titles. Two early readings of
+it each disagreed with what it measurably does, and more than one title was refused for a while;
+read again, the rule is derivable and is the one the program keeps. See [ir.md](ir.md), "Which
+title wins is Svelte's rule, and it is derivable".
 
 ## The head
 

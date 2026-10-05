@@ -208,7 +208,7 @@ each component and runes module, by its own path -- every component its markup r
 component a universal `load` of the route imports, and every module the loader evaluated beneath
 the staged copies, followed down their imports, outside `node_modules`. A file changing that is
 any of them makes the route stale; a file that is none of them, a `+page.server.ts` or an
-endpoint, makes nothing stale, and the next request renders from the program it has. A route whose
+endpoint, makes nothing stale, and the next request is checked against the program it has. A route whose
 compile failed has no such list and is stale after any change.
 
 **What is remembered by path is forgotten on any change.** The compile's memos are keyed by source
@@ -218,9 +218,10 @@ changes, whether it reaches the server's environment, the names a script declare
 runner drops what it evaluated of the file and of everything importing it, since a staged copy
 keeps its name when only a module it imports changed.
 
-**A file added or removed under the routes re-reads the routes**, and every route is stale. A route
-a request has asked for is compiled again once the edits stop for a tenth of a second, behind the
-reload that will ask for it, so a refusal reaches the open page as soon as the edit does.
+**A file added or removed under the routes re-reads the routes**, and every route is stale until a
+request asks for it again. **A changed file** makes a route a request has asked for compiled again
+once the edits stop for a tenth of a second, behind the reload that will ask for it, so a refusal is
+said on the terminal as soon as the edit is made.
 
 **One compile runs at a time**, since what a compile configures -- the render's host, the project's
 options, the development flags -- is module state; two requests for one stale route share its
@@ -286,7 +287,7 @@ An edit that leaves the page's sources alone costs nothing, which is the p50; on
 is a compile of about 1.2 s, which is the p95 and does not drift over the session. Both servers grow
 by about half a gigabyte over it; the fork starts some 430 MB higher, the loader and what it
 evaluates, and grows about 130 MB more, the staged copies each edit makes. Nothing restarts on memory
-yet: what the ladder climbs on is a fault, and growth is not one.
+yet: what starts the compile over is a fault, and growth is not one.
 
 ### What it costs, on `status`
 
@@ -381,8 +382,9 @@ packaging option rather than a stage.
 
 The stronger reason is not the 3.8x.
 
-A backend that is not Node has to serve the same bytes, which is why there is no runtime fallback
-for a refused component -- see [refusals.md](refusals.md). If the TypeScript server read a bundled
+A backend that is not Node has to serve the same bytes, which is why a refused component rendered by
+SSR is named in the artifact, and a route with such a part is one only a backend with Node serves --
+see [together.md](together.md). If the TypeScript server read a bundled
 JavaScript artifact and the Rust server read JSON, the two would no longer be reading the same
 thing, and a second axis of divergence would exist for no gain: reading JSON costs TypeScript
 nothing and measured faster.
@@ -552,8 +554,7 @@ carries the finished string:
 "routes": {
   "/": {
     "id": "src/pages/product",
-    "ir": "src/pages/product.json",
-    "carried": null,
+    "script": "src/pages/product.js",
     "head": "<link rel=\"modulepreload\" href=\"/_app/chunk.js\"><script type=\"module\" src=\"/_app/product.Bq7f.js\"></script>"
   }
 }
@@ -831,8 +832,8 @@ were loops that are sequential because of what they do:
 - the runtime's `drive` feeds a generator one step at a time, each step's input the last one's
   answer;
 - a structure, a route and an alternate branch are rendered one at a time, for the memory a render
-  holds and for a deadline that is per render -- see "The memory a compile holds", and "One
-  render" in spec/suite.md;
+  holds and for a deadline that is per render -- see "The memory a compile holds", and "Each side's
+  render has a deadline of its own" in spec/suite.md;
 - `resolve.ts` tries holes against a shared `seen`, which two renders at once would race;
 - the tests assert per case, with the case in the message, which a `Promise.all` would take away.
 

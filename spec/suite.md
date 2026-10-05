@@ -91,8 +91,8 @@ limits is real in its own layer and is measured there -- [conformance.md](confor
 stages, a backend's own tests -- and none of them is a reason to take a Svelte sample out of this
 one. A refusal that says one is a gap that has named the wrong layer.
 
-**The same holds for this protocol's own rules.** [derivation.md](derivation.md) holds the derive
-stage to a pure function of the payload, for reasons about hydration and about two backends. Where
+**The same holds for this protocol's own rules.** [derivation.md](derivation.md) holds a derivation
+to a function of the render input, for reasons about hydration and about two backends. Where
 a sample needs more than that allows, it fails here, and closing it is a decision about that rule
 -- [readings.md](readings.md) holds each under **What the render computes per request, and what
 each item was**, and what is still open is in [roadmap.md](roadmap.md).
@@ -185,6 +185,14 @@ So the rule for reading one is what the value is and where it came from, and it 
 **A dismissed alert comes back when its line moves.** CodeQL tracks an alert by location, so a
 file split files the same construction under a new number, and the new one is dismissed with the
 old one named in its comment rather than argued afresh. The comment is held to 280 characters.
+
+**An alert in code the fork took from Kit unchanged is read as Kit's.** `pkgs/framework` is Kit's
+source, and where a flagged line is still upstream's byte for byte, a false positive is dismissed as
+one with upstream named (alerts 50 and 52), and a real one that is bounded -- alert 49, a quadratic
+regex rewriting stack lines of an error being logged -- is dismissed as won't fix: the fork does not
+diverge from upstream to answer it alone, the user's decision. In this repository's own code a real
+one is fixed, with a test that fails on the old code (alert 55, an exponential regex in
+`rewrite.ts`).
 
 `js/incomplete-sanitization` is read the same way. A regex escape covering `$` alone (alert 40) was
 complete for what reached it -- identifiers hold nothing else -- and was still the shape the rule
@@ -284,7 +292,7 @@ one last.
 **It was one render for a while, the async one alone, and went back.** The synchronous pass was
 dropped on the reading that Kit 3 would be async only and Svelte 6 keeps only the async render.
 Measured, neither holds today: Kit 3 defaults `experimental.async` to `false` (`?? false` in
-`exports/vite/index.js`), ten of its thirteen test apps run without the flag, and Svelte 6 has no
+`exports/vite/index.js`), ten of its twelve test apps run without the flag, and Svelte 6 has no
 timeline -- only the sentence that the experimental flag is removed there. A project in the
 foreseeable future is a synchronous one, and a suite measuring only the other render was holding
 the compiler to a version that does not exist yet. What the one render had found stays found:

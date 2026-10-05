@@ -43,8 +43,9 @@ compiles in that mode; unset, each file's mode is read off its scripts, and a fi
 it is in legacy mode, which writes different anchors around the same markup. Svelte's own order is
 `<svelte:options runes>` first, then the project's option, then the scripts.
 
-So the compiler reads `compilerOptions.runes` off the file, raw -- Kit's validator does not know the
-key -- and every Svelte compile in the pipeline is handed it, along with the one place that decides
+So the compiler reads `compilerOptions.runes` -- off the plugin's argument first and
+`svelte.config.js` beneath it, raw, as [framework.md](framework.md) records for Kit 3 -- and every
+Svelte compile in the pipeline is handed it, along with the one place that decides
 a file's mode for itself (`legacyMode`).
 
 **It is a function as often as a boolean.** `sv create` writes
@@ -183,7 +184,8 @@ the shape this compiler is built for.
 `<svelte:element>` names, and the id `$props.id()` hands out, which is one per component instance
 and so one per item of an each. The runtime makes that decision, and this is the residue the
 section above is about. **It is the only thing that reaches the runtime.** Everything enumerable is
-compiled.
+compiled. A part of a route rendered by SSR is not a decision of this kind: it is Svelte's render,
+named in the artifact ([together.md](together.md)).
 
 ## What an enumerated field costs, and what it does not
 
@@ -258,7 +260,8 @@ carried alongside         __d0 = (price > 10)
 ```
 
 Now the branch is forced by setting `__d0`, and the predicate is never evaluated at build time at
-all. At request time it is evaluated once, over data, before injection.
+all. At request time it is evaluated over data when the program first reads it, once
+([derivation.md](derivation.md), "A derivation is computed when it is read, and not before").
 
 **This is why the derivation and the borrowed code generator are one decision rather than two.**
 Without the rewrite there is no way to force a branch; without the forcing there is no way to
@@ -295,8 +298,8 @@ render -- applied at the root, where there was no caller to hand the component b
 about a page every request gets identically is a refusal about nothing: the render at build time
 is the render every request would have made.
 
-It is not the runtime fallback [refusals.md](refusals.md) refuses. Nothing renders per request; the
-bytes are made once, at build time, and served as they are.
+It is not a degradation to SSR ([together.md](together.md)). Nothing renders per request; the bytes
+are made once, at build time, and served as they are.
 
 **It is taken only where it is provably the request's render**, asked of every file the entry
 reaches by a relative import, whatever refusal the walk happened to raise first:
@@ -339,7 +342,8 @@ direction.
 
 The line is between running data and running UI. Everything the old objection to a JavaScript
 backend was about -- a component tree executed per request, a renderer, a virtual DOM, a
-framework runtime -- stays gone. The alternative to running anything is asking the author to
+framework runtime -- stays gone from what CTR serves. A part of a route rendered by SSR brings
+Svelte's renderer back for that part, and the artifact names it ([together.md](together.md)). The alternative to running anything is asking the author to
 hand-write every derived value, which is the author doing the compiler's work.
 
 What arrives is the route's script: the functions the author's expressions call, compiled to one
@@ -378,7 +382,7 @@ cost worth engineering around. **Whoever is writing Svelte components has a Java
 their machine already**, and a build step that assumes one assumes nothing.
 
 The deployed server is where the constraint actually mattered, and that is where it still holds:
-no UI code and no framework. A JavaScript engine is in every backend, QuickJS in Rust's, so what
+no UI code and no framework, for every route the artifact names CTR whole. A JavaScript engine is in every backend, QuickJS in Rust's, so what
 runs there is a question of what the artifact asks of it, not of whether one is present
 ([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with QuickJS").
 

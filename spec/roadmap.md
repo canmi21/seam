@@ -59,20 +59,23 @@ which names the stages and the checks that accept it. Two words are used exactly
 this repository's render, at the build where nothing the request decides is read and per request
 where something is. **SSR** is Svelte's server render run per request, Kit's.
 
-**The order is A, B, C, D.** B comes before C because B is where the declaration of SSR is made,
-and both backends after it read that declaration: C serves what declares none, D starts Node for
-what declares some. Each is started once the one before it is accepted; a failure in a milestone
-then has one explanation fewer, which is [conformance.md](conformance.md)'s argument for its own
-order.
+**The order is A, B, C, D.** B comes before C because B is where SSR enters a route, and both
+backends after it read what the artifact says of each route: C serves a route with no SSR part, D
+starts Node for a route with one -- declared or degraded, `mixed` or `ssr` in the artifact's
+`coverage` ([together.md](together.md)). Each is started once the one before it is accepted; a
+failure in a milestone then has one explanation fewer, which is [conformance.md](conformance.md)'s
+argument for its own order. **B is the exception**: taken forward while A is still being worked,
+the user's decision, which is what [together.md](together.md) records.
 
 ### A: Kit's place, by an alias, with CTR where SSR was
 
 **An application written for Kit swaps one line of its `package.json` and is served by CTR.**
 `"@sveltejs/kit": "npm:seamjs@<version>"` ([framework.md](framework.md), "The fork is the entry,
 under the entry's name"), nothing else edited, and every page it serves is compiled -- wherever it
-writes nothing CTR refuses. What CTR refuses is a compile-time error naming the shape, never a
-request handed to SSR instead ([refusals.md](refusals.md), "Every refusal is a compile-time
-error").
+writes nothing CTR refuses. What CTR refuses is rendered by SSR -- the smallest component that can
+be, at worst the route -- and named in the artifact's `coverage` ([together.md](together.md)); as A
+was planned it was a compile-time error ([refusals.md](refusals.md), "Every refusal is a
+compile-time error"), which that supersedes.
 
 Accepted when all four hold:
 
@@ -84,7 +87,9 @@ Accepted when all four hold:
    runs them against, but for a failure a declared difference lists. **Met**: every spec of the
    eleven apps passes under the check build, but the declared one
    ([conformance.md](conformance.md), "Stage 2").
-3. **No request to a production build runs SSR.** Held by a check build in which Kit's
+3. **No request to a production build runs SSR where the artifact's `coverage` says `ctr`.** A
+   route `mixed` or `ssr` runs it by declaration or degradation ([together.md](together.md)), and
+   the check build exempts a route SSR whole. Held by a check build in which Kit's
    `root.svelte` throws whenever it is rendered, under which 1 and 2 still pass (`--kit-root=throw`,
    [conformance.md](conformance.md), "Stage 2"). **Met**: every app compares the same and every
    spec passes with no request reaching Kit's root, error pages included
@@ -97,10 +102,11 @@ Accepted when all four hold:
 `vite dev` is not in A: it is a target of its own, below, and it is met.
 
 **A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md)).
-**An application of the author's moves onto it once A is accepted and the dev server is CTR's too**
-(below): an application served by CTR and developed under Kit's SSR is one whose author meets a
-shape CTR refuses only at the build, which makes every day after the move worse than the day
-before it. Until both hold, no application of the author's is changed -- `status` included, which
+**An application of the author's moves onto it once A is accepted and the dev server says what the
+build will do** (below): an application served by CTR and developed where nothing says what CTR
+makes of it is one whose author meets a shape CTR refuses only at the build, which makes every day
+after the move worse than the day before it. The dev server says it now, while answering with
+Kit's render. Until both hold, no application of the author's is changed -- `status` included, which
 A measures from a copy. Then they move, a few small ones in the monorepo first and the rest as each
 holds, so that what a migration meets is met in the author's projects before anyone else's. What it is then offered to others on is those migrations. `create-seamjs` changes with that release
 and not before: it still writes the plugin's arrangement, `seam()` beside `sveltekit()`, and moves to
@@ -109,8 +115,8 @@ the alias when the entry is first published as the fork ([publish.md](publish.md
 ### Vite's dev server: CTR under HMR, after A
 
 **`vite dev` is taken by CTR too, as a compile target of its own.** It is after A, and gates the
-author's applications moving, though neither A nor the release; until it was done, the dev server
-rendered by SSR as Kit's does, and a shape CTR refuses was met at the build. A target of its own because the bytes are another set:
+author's applications moving, though neither A nor the release; before it, the dev server rendered
+by SSR as Kit's does and said nothing of CTR, and a shape CTR refuses was met at the build. A target of its own because the bytes are another set:
 under the dev server Svelte compiles with `dev` and `hmr`, its server output differs from a
 production build's -- a `<!---->` after every component that `clean_nodes` would leave alone
 ([framework.md](framework.md), "The comparison that counts") -- and the dev client hydrates those.
@@ -126,8 +132,8 @@ twelve apps under `vite dev` answer every page as Kit's dev server does
 ([conformance.md](conformance.md), "Under the dev server"), the plugin's sample does under an edit
 of a component, of a server `load` and into a shape CTR refuses (`pkgs/plugin/src/dev.test.ts`), and
 `status` does, its first compile 2.1 s and an edit reaching the next request in 1.7 s where Kit's
-takes 0.5 s. Two decisions of the user's shape it: a refusal is Vite's error page rather than a
-fall back to SSR, and the script Svelte's `dev` writes about a misplaced element is reported by the
+takes 0.5 s. Two decisions of the user's shaped it then -- a refusal was Vite's error page rather
+than a fall back to SSR, since superseded by [together.md](together.md), and the script Svelte's `dev` writes about a misplaced element is reported by the
 compile and not written. Svelte's own samples under the dev options are not yet measured; the
 suite renders under the production runtime, and a run of it under the development one is owed.
 
@@ -189,14 +195,14 @@ backend, and C is where it is asked.
 ### D: Rust as the server, with Node for what is declared SSR
 
 **Rust is the server, the meta-framework's server replaced, and the client is Kit's as it is.** SSR
-runs in a Node process the Rust server starts and talks to, for the components B's declarations
-name and nothing else.
+runs in a Node process the Rust server starts and talks to, for the parts of a route the artifact
+names SSR -- declared or degraded -- and nothing else.
 
 Accepted when:
 
 1. **The same application with the same declarations answers B's bytes.**
-2. **Rust starts Node only where something is declared SSR.** An application declaring nothing is
-   C, and C's second check holds of it.
+2. **Rust starts Node only where a route has an SSR part**, declared or degraded. An application
+   none of whose routes has one is C, and C's second check holds of it.
 3. **The client is Kit's**: the same client build A ships, unchanged by the server behind it.
 
 ## Where it stands

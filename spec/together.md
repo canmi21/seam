@@ -23,7 +23,9 @@ This supersedes [refusals.md](refusals.md), "There is no runtime fallback", and 
 [roadmap.md](roadmap.md)'s B that SSR is the author's and never the compiler's. What they argued
 still holds of the protocol -- a Rust server reaches Svelte's render only through Node -- and it is
 answered here by naming what is SSR rather than by refusing it: a route with an SSR part is one
-only a backend with Node serves, and the build lists it.
+only a backend with Node serves, and the build lists it. **It is milestone B, taken forward before
+A is accepted**, the user's decision; [roadmap.md](roadmap.md), "B: CTR and SSR together, in Node",
+keeps B as it was planned.
 
 ## Declaring a component SSR
 

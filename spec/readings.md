@@ -113,7 +113,7 @@ either, and the suite gives each sample a deadline now.
 
 **Compiled, because a project can turn it on today, and beside the synchronous render rather than
 instead of it.** Svelte's documentation says the flag is removed in Svelte 6, which has no
-timeline; Kit 3 keeps it opt-in and ten of its thirteen test apps run without it (see
+timeline; Kit 3 keeps it opt-in and ten of its twelve test apps run without it (see
 [conformance.md](conformance.md)). So compile-time async is work now, not an experiment to wait
 out, and the synchronous render is the one most projects get and is measured as such
 ([suite.md](suite.md), "Two passes"). Two halves, and they are not the same half:
@@ -124,8 +124,9 @@ out, and the synchronous render is the one most projects get and is measured as 
 - **An `await` of what the request decides** is the same derivation awaited per request rather
   than at the build: done, see **What the render computes per request, and what each item was**.
 
-A project turns the mode on with `compilerOptions.experimental.async` in `svelte.config.js`, and
-that is what the compiler reads, the way it reads `runes`; `SEAM_ASYNC` was the stand-in for it.
+A project turns the mode on with `compilerOptions.experimental.async`, on the plugin's argument or in
+`svelte.config.js` beneath it ([framework.md](framework.md)), and that is what the compiler reads,
+the way it reads `runes`; `SEAM_ASYNC` was the stand-in for it.
 The eighth anchor above is owed.
 
 **The two halves are one mechanism.** An `await` whose argument reads the payload is a derivation
@@ -164,7 +165,9 @@ that are worth keeping written down.
 
 What is left of the shapes this used to cover is a program per request either way: a `$:` that
 mutates rather than assigns, a function called from a block expression that counts its own calls,
-and a `$:` block that does more than one thing.
+and a `$:` block that does more than one thing. The script run is that program now
+([derivation.md](derivation.md), "Where substitution cannot follow, the script runs as Svelte
+compiled it").
 
 ## A component binding sends a value back, and which value is a branch
 
@@ -289,7 +292,9 @@ it off the ordinary component.
 
 **Holding it, rather than refusing it, is the open half.** A name whose value is shared has to be
 bound once per request rather than written out per read, which the derivation machinery could do --
-a derivation is already evaluated once and cached. That is a change to what substitution is.
+a derivation is already evaluated once and cached. That is a change to what substitution is, and the
+script run made it ([derivation.md](derivation.md), "Where substitution cannot follow, the script
+runs as Svelte compiled it").
 
 ### A recursive component whose body is one block: done
 
@@ -737,15 +742,16 @@ as a mutation.
 that is not a component renders nothing: Svelte calls it and throws, and there are no bytes to
 reproduce, so the artifact renders the candidate.
 
-**A store the request brings: decided, and moved.** The question was where it belongs, and the
-answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store
+**A store the request brings: decided, and moved.** _Since done: the render input holds a store and
+only the wire carries data alone ("A store, or a component, the props carry", below); what follows
+is the reading as it stood._ The question was where it belongs, and the answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store
 itself would have to be in the payload; the wire is devalue, which serialises data, and a store is
 an object with a `subscribe` function. A function is not data. Reading the value in the load stage
 and putting _that_ in the data is the same page, which is what the refusal already tells the author.
 The six were counted under **decided** in [conformance.md](conformance.md), and are gaps again.
 
-**`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **Owed: what the render
-computes per request** below. It was written here as abandoned, which reads as work nobody wanted rather than as
+**`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **What the render
+computes per request, and what each item was** below. It was written here as abandoned, which reads as work nobody wanted rather than as
 the scope line, and those are the two things [roadmap.md](roadmap.md) exists to keep apart.
 
 **A `<svelte:boundary>` whose body throws: moved.** This said the request-dependent side was a gap
@@ -830,8 +836,8 @@ What the suite reported was nothing failing, which is the condition
 [conformance.md](conformance.md) set for stage one, and it does again. Paying the runner's own skips
 measured eighteen more samples: fourteen pass, three are upstream's environment, and one,
 `runtime-legacy/reactive-import-statement`, is module state its module changes, which was classified
-as owed work, then filed as blocked on request-time rendering, and is owed work again -- see **Owed:
-what the render computes per request**.
+as owed work, then filed as blocked on request-time rendering, and is owed work again -- see **What the
+render computes per request, and what each item was**.
 
 **And it stopped reporting that when the blocked skips were read.** 99 sample runs were skipped as
 blocked on request-time rendering, and none of them was: each is a gap, and the suite fails on it
@@ -933,7 +939,8 @@ Svelte's client against them. The question is Svelte's and is answered by the or
 
 **A prop written as `export let` is done.** Svelte 4's spelling, which Svelte 5 still compiles;
 measured byte for byte against `$props()` with the same defaults, so the file is rewritten to
-that before anything reads it (`runed()` in `legacy.ts`). `export const` and `export function`
+that before anything read it, by a `runed()` since removed: `propsOf` reads the spelling itself
+("Done, and `runed()` is gone", above). `export const` and `export function`
 are readonly exports and are refused by name.
 
 **A store read in markup: done.** `$x` is a subscription to the store `x`, and it resolves exactly
@@ -946,10 +953,10 @@ and nothing else.
 
 Two things had to go with it. `$x` is the only use an imported store may have, and the pass that
 drops unused imports counted it as a use of `$x` rather than of `x`, so the import went and Svelte
-refused the read as an illegal variable name. And a store the **request** brings is refused: a
-store is an object with a `subscribe` function where the payload carries data, so `store_get` handed
-a marker reads nothing -- which used to fail at injection rather than at build, with
-`deriving \`$b\` failed`. Three are left, each its own shape: a store write inside an exported
+refused the read as an illegal variable name. And a store the **request** brings was refused, since
+a store is an object with a `subscribe` function where the payload carried data -- it failed at
+injection rather than at build, with `deriving \`$b\` failed`; it is done now, under "A store, or a
+component, the props carry", below. Three are left, each its own shape: a store write inside an exported
 function, a store deciding a `<svelte:element>` tag, and one still failing in a derivation.
 
 ## What the render computes per request, and what each item was
@@ -968,8 +975,8 @@ state -- per request, and the build never reads one in its place; see [derivatio
 "Ambient input is read at request time, never at the build". The items below that were marked as
 waiting on it are work now.
 
-**Module state a module changes.** Filed as state a build cannot read. The derive stage is not the
-build: it runs per request in the carried bundle, which imports each module once as a server
+**Module state a module changes.** Filed as state a build cannot read. A derivation is not the
+build's: it runs per request in the carried bundle, which imports each module once as a server
 process does, so it reads the binding as it stands at the request, which is decided. [refusals.md](refusals.md) has the survey of how
 rare the shape is.
 
