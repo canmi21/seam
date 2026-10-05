@@ -49,6 +49,7 @@ nothing is published: a release of the scope would name a plugin no released ent
 | `pkgs/program`   | `@seam-js/program`                                |
 | `pkgs/lowering`  | `@seam-js/lowering`                               |
 | `pkgs/routes`    | `@seam-js/routes`                                 |
+| `pkgs/stream`    | `@seam-js/stream`                                 |
 | `pkgs/create`    | `create-seamjs`                                   |
 
 `pkgs/apps` and `pkgs/suite` are this repository's checks and stay private. So does
@@ -92,8 +93,8 @@ sees as a string.
 `mise run pack` builds `wasm`, compiles every package with tsdown and writes one tarball per
 package into `.build-pack/`, with `workspace:*` already rewritten. Nothing publishes: the tarballs
 go up with `npm publish <file>`, run by hand, dependencies before what depends on them -- `ast`,
-`runtime`, `program`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry, then
-`create-seamjs`.
+`runtime`, `program`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, `plugin`, `stream`, then
+the entry, then `create-seamjs`.
 
 **A tarball is checked where a user would meet it**: installed into a fresh Kit 3 project outside
 this workspace, once with npm's hoisted layout and once with pnpm's isolated one, the entry under
