@@ -328,7 +328,7 @@ See [derivation.md](derivation.md).
 
 - **A TypeScript server already has a JavaScript runtime**, and uses it.
 - **A Rust or Go server embeds one**, in the QuickJS sense: not Node and not Bun, no filesystem,
-  no network, no host of any kind.
+  no network, no host of any kind. It is always embedded: there is no backend without one.
 
 An earlier draft called that embedded engine "a JavaScript subset", which confused two things.
 QuickJS implements almost all of ES2025 and passes nearly the whole test suite; what it lacks is
@@ -375,7 +375,9 @@ cost worth engineering around. **Whoever is writing Svelte components has a Java
 their machine already**, and a build step that assumes one assumes nothing.
 
 The deployed server is where the constraint actually mattered, and that is where it still holds:
-no UI code, no framework, and no JavaScript at all unless a derivation needs it.
+no UI code and no framework. A JavaScript engine is in every backend, QuickJS in Rust's, so what
+runs there is a question of what the artifact asks of it, not of whether one is present
+([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with QuickJS").
 
 ## Where the code is against this
 

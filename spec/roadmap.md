@@ -150,6 +150,11 @@ Accepted when:
 **A server written in Rust serves the same artifacts, and runs what a derivation computes in
 QuickJS.** [build.md](build.md) has why the artifacts do not change with the backend.
 
+**There is no Rust backend without an engine.** QuickJS is in every Rust server, enabled by
+default, and the two shapes Rust takes are this one and D's, with Node beside it. Nothing is built
+for a Rust server that serves by walking the IR with no JavaScript, and nothing is decided for its
+sake.
+
 Accepted when:
 
 1. **The same artifacts answer the same request with the same bytes** as the Node backend does.
@@ -189,6 +194,22 @@ Accepted when:
   the target, and what it moves", is the order it was taken in.
 
 ## Owed
+
+**How the request-time half runs.** Measured on `status` through `.local/status`, one request of
+the page: about 259 ms injecting against about 37 ms for Kit's render, out of 302 ms and 80 ms. The
+walk evaluates about 91,000 derivations, each a `new Function` reading its names through nested
+`with` over a proxied scope stack -- 540,000 `has` traps a request -- and that read alone is about
+25 times a lexical closure's on the page's own bar expression. The walk itself is a generator
+stepping 163,000 nodes, and a per-item value is held by scope identity, which a nested each misses:
+`dailyOf` runs 771 times where Kit's runs it 192. A boundary's run is not it, at under 5 ms. Two
+answers, and the choice is not made: keep the walk and make each step cheaper -- derivations
+built with their names as parameters, a loop where nothing waits, a hold that is lexical -- which
+still calls into the engine once per hole; or lower each route's IR and derivations at the build
+into one program that writes the bytes, constants as literals, an each as a loop and a `{@const}`
+as a `const`, which the engine runs once a request. The second is the one to try, on `status`
+first, against the same byte-for-byte comparison and the same measurement. With every backend
+carrying an engine, nothing outside this measurement holds the first in place; see
+[ir.md](ir.md), "Expressions are not evaluated".
 
 Every item below was read out of Svelte 5.57's source before it was written down, and the file
 that decides it is named. That is the order of work for each: read the transform and the runtime,

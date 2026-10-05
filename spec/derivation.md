@@ -1633,7 +1633,7 @@ with no DOM, no lifecycle and no request.
 
 **Substitution first, the script only where substitution cannot follow.** A name that is one
 expression stays one expression, and a component whose every read substitutes has no derivation
-for this and needs no JavaScript engine to be served. Where a read cannot be substituted -- the
+for this and needs no script run to be served. Where a read cannot be substituted -- the
 name is reassigned, the object mutated, a `$:` changes it over a prop, a store the script writes --
 the values come out of the script run for that request, and the read becomes a field of that one
 held value.
@@ -1872,7 +1872,7 @@ budget, and that is a deployment choice rather than a rule here.
   Svelte compiled it; see "Where substitution cannot follow, the script runs as Svelte compiled it".
   The three questions this item held are answered there: the module block once per process and the
   instance block per request, the imports Svelte's output has, and substitution first so a
-  component that needs no run needs no engine. The measurement that made it cheap still stands:
+  component that needs no run is served without one. The measurement that made it cheap still stands:
   across 4323 real components, 15 assign to a declared name outside a function, and press has none.
 
 - **Per-item derivation.** _Settled._ A derivation reading a name an each block binds is computed

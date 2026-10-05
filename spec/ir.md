@@ -476,24 +476,20 @@ they now come from.
 
 **`test` and `path` are data paths. They are never expressions.**
 
-That is what lets a backend serve a component without a JavaScript engine. Walking this IR needs
-three things -- follow a dotted path over the payload, escape a string, and ask whether a value is
-truthy -- and none of them is JavaScript. An engine is needed exactly when a component carries a
-derivation, which happens exactly when the author wrote something that is not a path. **Measured on
-the corpus: 10 of 14 components carry none.** A Rust server runs those with nothing embedded in it.
-See [derivation.md](derivation.md), where what would end that property is recorded.
+**Every backend has a JavaScript engine.** Rust serves with QuickJS, which is always in the
+process, or with Node beside it; there is no Rust backend without an engine, and no route is ever
+served by walking the IR alone ([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with
+QuickJS"). This section used to say the opposite: that holding only paths let a backend serve a
+component with no JavaScript engine, that a compiled backend chose whether to embed one from a
+`cfg` flag, and that a manifest field `expressions` answered it. None of that was built, and it no
+longer stands.
 
-**A compiled backend decides this once, for the whole binary, from a `cfg` flag.** One component
-with a derivation is enough to need the engine, so the question is about the artifact rather than
-about a route, and the manifest answers it in one field:
-
-```json
-{ "expressions": false, "routes": { ... } }
-```
-
-Reading a field rather than scanning every route is the point: a build script that had to open each
-IR to decide would be reimplementing this rule somewhere it could drift from. See
-[build.md](build.md).
+So the rule above is how the IR is today, and its reason is gone. Holding a path where the author
+wrote an expression makes every value a call out of the walk into the engine, one per hole; on
+`status`, about ninety thousand a request, each through a `with` chain and a proxied scope, and
+that is most of why the request costs several times Kit's ([conformance.md](conformance.md),
+"Stage 3"). **Whether the request-time half stays a walk calling into the engine per hole, or
+becomes one program per route the engine runs once, is open** -- [roadmap.md](roadmap.md), "Owed".
 
 `data.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
