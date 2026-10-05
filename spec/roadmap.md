@@ -91,8 +91,8 @@ Accepted when all four hold:
    ([framework.md](framework.md), "The error page").
 4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps, and
    no slower per request than through Kit ([conformance.md](conformance.md), "Stage 3"). **The
-   bytes are met; the cost is not**: about three and a half times Kit's, for how a derivation is
-   evaluated per item.
+   bytes are met, and the cost is Kit's within two percent**: sooner under load, about 1.3 ms
+   later one request at a time.
 
 `vite dev` is not in A: it renders with Kit's root, and its own target is below.
 
@@ -189,37 +189,31 @@ Accepted when:
   either, and there is no harness skip left in the list; `mise run vendor-baseline` prints where
   it stands. Every construct still refused is refused by name, and no sample in Svelte's corpus
   writes one.
+- **The request-time half is one program per route** ([ir.md](ir.md), "A route is one program"),
+  rewritten in the four steps it was planned in, against `status` measuring a request at three
+  times Kit's: the walk evaluated about 91,000 derivations a request, each a `new Function` reading
+  its names through nested `with` over a proxied scope stack, 25 times a lexical read. What came of
+  each step:
+  1. **The program.** Written from the IR and derivations the lowering already wrote, each name
+     resolved when it is written ([derivation.md](derivation.md), "A name is resolved when the
+     program is written"); `derive` and the walk are gone, and what Svelte's bytes need of a runtime
+     is `@seam-js/injector/runtime`.
+  2. **A boundary is a `try`** ([ir.md](ir.md), "A boundary is a `try`"), and its run is not
+     evaluated. Two parts of the plan were not taken as written. The lowering still writes the run
+     and the guards, which the program falls back on where it finds no body half, so they are kept
+     in the IR rather than removed; and a `{@const}` is a function of its item kept per item
+     ([derivation.md](derivation.md), "An instance is made once") rather than a `const` where it is
+     declared, since a value of the IR names no place in the walk to be declared at.
+  3. **The artifact is the script**, the carried bundle and the program ([build.md](build.md), "A
+     route is one script, and every backend runs it"), and every corpus case runs in QuickJS byte
+     for byte. `hydratable`'s script still reads Node's host, and is C's.
+  4. **Accepted**: the suite, Kit's eleven apps byte for byte, their specs under the check, and
+     `status` ([conformance.md](conformance.md), "Stage 3").
 - **A is what is being worked**, and stage two with it: SvelteKit 3's own test apps, built through
   the fork and driven by Kit's own specs unedited. [framework.md](framework.md), "SvelteKit 3 is
   the target, and what it moves", is the order it was taken in.
 
 ## Owed
-
-**How the request-time half runs.** _Decided: one program per route, rewritten now._ Measured on
-`status` through `.local/status`, one request of the page: about 259 ms injecting against about
-37 ms for Kit's render, out of 302 ms and 80 ms. The walk evaluated about 91,000 derivations, each
-a `new Function` reading its names through nested `with` over a proxied scope stack -- 540,000
-`has` traps a request -- and that read alone is about 25 times a lexical closure's on the page's
-own bar expression. The walk itself was a generator stepping 163,000 nodes, and a per-item value
-was held by scope identity, which a nested each missed: `dailyOf` ran 771 times where Kit's runs it 192. A boundary's run was not it, at under 5 ms. Making each step cheaper would still have called
-into the engine once per hole, and with every backend carrying an engine nothing held that in
-place ([ir.md](ir.md), "Expressions are not evaluated"). So the build lowers each route's IR and
-derivations into one program that writes the bytes -- constants as literals, an each as a loop,
-every name resolved to what it means when the program is written -- and the engine runs it once
-a request. In four steps, each held to the whole suite, Kit's apps byte for byte and `status`:
-
-1. **The program, over the IR as it is.** Generated from the IR and the derivations the lowering
-   already writes, so the new backend is held to the bytes the old one was held to. It replaces
-   `derive` and the injector's walk; what Svelte's bytes need of a runtime -- escaping, the title
-   channel, `hydratable`'s script -- stays a library the program calls.
-2. **What only the walk needed goes.** A boundary is a `try` around what its children write, as
-   `renderer.boundary` is, so its run, the guards and the per-request tables go; a `{@const}` is a
-   `const` where it is declared.
-3. **The artifact is the program.** One script a route, the carried bundle and the program
-   together, evaluated once a process: no `new Function` per expression, no `with`, nothing of
-   Node's host in what it calls, so QuickJS runs it as Node does.
-4. **Accepted.** What the old backend left behind removed, the spec rewritten to the program, and
-   `status` no slower than Kit's own render.
 
 **A child's write into an object the caller reads, under the async render.** Not yet measured by
 the suite, and owed. `runtime-legacy/binding-backflow`'s `reactive_mutate` and `init_mutate` cases
@@ -235,8 +229,8 @@ reaches" in [readings.md](readings.md), met through evaluation order rather than
 Two answers, and the choice is not made: evaluate the async derivations of a structure in source
 order, which is Svelte's order and costs the concurrency the async build has; or hand a held run a
 copy of what it is passed, which is not Svelte's semantics -- the object is one object there, the
-read is just earlier. The first is the one to try; what `stacked()` in `pkgs/derive` orders today
-is where it starts. Kit's `async` and `options-2` apps turn the flag on, so stage two is where a
+read is just earlier. The first is the one to try; the order the program evaluates what waits in
+(`evaluated()` in `pkgs/program/src/derivations.ts`) is where it starts. Kit's `async` and `options-2` apps turn the flag on, so stage two is where a
 test for it arrives; it is taken there rather than ahead of it.
 
 **A package's module whose state something changes.** The render imports each module afresh and

@@ -304,7 +304,7 @@ reaches by a relative import, whatever refusal the walk happened to raise first:
 - **The entry takes no props**: no `$props()`, no `export let`, no `$$props`, nothing from
   `$app/`.
 - **No value only the server holds** (`process`), which the build would read in its place.
-- **No `hydratable`**, whose script the injector writes per request with the request's nonce.
+- **No `hydratable`**, whose script the program writes per request with the request's nonce.
 - **No clock, randomness or host global in any component's markup, and no module state its own
   module changes.** These are the two questions [derivation.md](derivation.md) decided under "Ambient
   input is read at request time, never at the build", and baking one at build is answering them
@@ -342,8 +342,9 @@ backend was about -- a component tree executed per request, a renderer, a virtua
 framework runtime -- stays gone. The alternative to running anything is asking the author to
 hand-write every derived value, which is the author doing the compiler's work.
 
-What arrives is the derivation bundle: the author's expressions, and the pure functions those
-expressions call, compiled to one script with no imports left in it. Bundling is what keeps the
+What arrives is the route's script: the functions the author's expressions call, compiled to one
+bundle with no imports left in it, and the program that writes the bytes, which holds the
+expressions themselves ([ir.md](ir.md), "A route is one program"). Bundling is what keeps the
 promise about a module system -- there is nothing to resolve, because nothing is imported at
 request time. Measured on the most ordinary case there is, a class helper over `clsx` and
 `tailwind-merge`: **27KB minified, zero references to any host API**, using nothing beyond
@@ -358,12 +359,14 @@ failure, so a script run under Svelte's async mode found none wherever a bundle 
 `process.getBuiltinModule`, which is synchronous and is not an import; an engine with no such host
 has no async render to run either.
 
-One syntactic constraint comes out of that and is the same on both engines. `with` is a syntax
-error in a module, modules being always strict, so the carried code is bundled as ordinary
-functions and the expressions themselves are built with `new Function` at startup, which is
-sloppy mode and where `with` is legal.
+One syntactic constraint came out of that and is gone with the program. `with` is a syntax error in
+a module, modules being always strict, so the expressions were each built with `new Function` at
+startup, which is sloppy mode and where `with` is legal. The program reads no name through `with`:
+each is resolved when the program is written ([derivation.md](derivation.md), "A name is resolved
+when the program is written"). It is still a script rather than a module, so that an expression the
+author wrote in sloppy mode runs as it was written.
 
-An enumerated operator set was considered instead, with the injector comparing a path against a
+An enumerated operator set was considered instead, with the walk comparing a path against a
 constant and no JavaScript anywhere. It is rejected: the operators are a language, the language
 acquires edge cases, and defending its boundary costs more than admitting that the expression was
 JavaScript to begin with.
@@ -397,7 +400,7 @@ branch that makes it exist. See `within` in `pkgs/skeleton/src/walk-types.ts`.
 
 ## The client is held to the same oracle as the bytes
 
-The corpus compares `inject(ir, scope)` with Svelte's own server output, so the fragment is settled
+The corpus compares the program's bytes with Svelte's own server output, so the fragment is settled
 there: where two strings are identical, a client cannot tell them apart. What it does not cover is
 the document those bytes are placed in -- the shell around them, the payload written beside them,
 and whether the value read back off the wire is the value the bytes were rendered from.
@@ -424,11 +427,11 @@ The first assertion is the one with teeth; the second is what tolerates the muta
 
 ## What this does not change
 
-**The IR does not change, and neither does the injector.** How the static chunks are produced
-moves; what they are does not. The runtime still walks a tree, resolves paths, escapes values and
-concatenates.
+**The IR does not change, and neither does the program it is written into.** How the static chunks
+are produced moves; what they are does not. The program still writes the chunks, resolves paths,
+escapes values and concatenates.
 
-That makes the change checkable rather than hopeful. The conformance corpus compares
-`inject(ir, data)` against Svelte's own server output for every case and payload, so it pins the
-expected bytes without caring how the IR was built. **The corpus written for the old strategy is
+That makes the change checkable rather than hopeful. The conformance corpus compares the program's
+bytes against Svelte's own server output for every case and payload, so it pins the expected bytes
+without caring how the IR was built. **The corpus written for the old strategy is
 the acceptance test for the new one.**

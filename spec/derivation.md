@@ -337,7 +337,7 @@ on; [conformance.md](conformance.md), "Stage 2", has where it stands.
 env -- `MODE`, `DEV`, `PROD`, `BASE_URL`, the `VITE_` variables -- in place of `import.meta.env`
 wherever a module of the build names it, and a component writing `{import.meta.env.MODE}` in its
 markup made a derivation holding `import.meta`, which a function body cannot, and did not parse.
-`derive` writes it as a read of `$$env()`, which answers what the dispatcher hands under
+The program writes it as a read of `$$env()`, which answers what the dispatcher hands under
 `import.meta.env` -- its own, which Kit's server build replaced as it replaced every other module's.
 
 **The compile runs under the build's mode.** Kit's `options` app builds with `--mode custom`, and a
@@ -402,10 +402,58 @@ the block's `init`; written out at each read it was evaluated at each read, and 
 `days` folded the check's whole history at every read of it. Where its initialiser calls or makes
 something and reaches the request, it is held (`hoisting()` in `stamps.ts`), marked as an item's
 inside an each so that the lowering computes it per item wherever it is first named -- a boundary's
-run names it outside the loop it walks -- and so is every derivation that reads it. `derive`
-computes a per-item derivation once per item: by the item's scope in the injector, and by what the
-item binds in a boundary's run, whose pieces bind it afresh (`within()`). A held value varies as its
-initialiser does (`varies()`), so a `style:` directive over a held `color` is still the request's.
+run names it outside the loop it walks -- and so is every derivation that reads it. A held value
+varies as its initialiser does (`varies()`), so a `style:` directive over a held `color` is still
+the request's.
+
+**The program keeps a per-item value by what it is called with** (`memoOf()` in
+`pkgs/program/src/derivations.ts`), where the value computes something. The last arguments and their
+value first: a page reads one item's values one after another, so most reads are of the item just
+read, and comparing is cheaper than looking up. An object is also kept for the rest of the request,
+by its arguments, where one of them is an object -- the item, by identity, since two items equal as
+values are still two items: it is one object for each item, whoever reads it and when. A value that
+is not an object is computed again where an item is read again after another, which writes the same
+bytes. A boundary's value of each item is a held value too, read by its run and by its hole alike
+(`hold` in `boundary()`), so the two are one value. Measured on `status`: `dailyOf` runs 192 times a
+request, once per check, as it does under Kit; it ran 771 times while a value was kept by the scope
+object a walk made per item, which a nested each made again.
+
+## A name is resolved when the program is written
+
+**Every name an expression reads is decided when the build writes the route's program**, in the order
+the evaluator used to look it up per request (`pkgs/program/src/names.ts`): what the request binds --
+`$$request`, and every name the expression's files mark as Svelte's `hydratable` -- then the files
+the expression was written across, innermost first, each holding what the carried bundle carries for
+it; then the data -- for a per-item derivation, what a block binds, an each's item and counter, a
+fragment's parameter, an id; then the derivations, the props, `$$given` and `$$options`; then the
+shared helpers. The build knows what each file carries, since it wrote the bundle, so nothing is
+looked up by name while the program runs.
+
+A name none of them holds is the host's and is left as the author wrote it, so a name the host has
+not got throws `ReferenceError` per request, as the server render does, and `typeof` of one is
+`'undefined'`. Before that, one the language does not define and this compiler did not write is
+asked of the payload as the request brought it, `"x" in $out`, since a payload may carry a key no
+prop declares. That is the answer the evaluator's `with` over the payload gave, decided once instead
+of at every read: it was a `new Function` per expression reading its names through nested `with`
+over a proxied scope stack, about 25 times a lexical read on `status`'s own bar expression.
+
+**A per-item derivation is a function of the block-bound names it reads**, and of the ones what it
+reads reads, to the fixed point; a read of it where the walk binds those names is a call with them,
+and a read of it inside another expression that binds one itself -- a boundary's run, which walks the
+loop again -- is a call with that one. Read twice in one evaluation with the same arguments, it is
+read once.
+
+## A program runs inside a render
+
+**Svelte's runtime in the carried bundle is in a render while the program runs.** Svelte runs a
+component's script inside a component context, and what the script makes may read it:
+`derived()` in `internal/server/index.js` memoises a `$derived` created inside a render and
+recomputes one created outside on every read. `status`'s page makes `new Live(data)` in its script,
+and outside a render `live.nowByKey` built a map of every row at each read, while
+`live.nowByKey === live.nowByKey` was `false` where Svelte's render says `true`. So the bundle
+carries `push` and `pop` of Svelte's component context, from the copy of Svelte its other imports
+reach -- by file, since Svelte exports neither (`rendering()` in `pkgs/carry/src/carry.ts`) -- and the
+program enters one around its run, and around each step after it waits.
 
 ## The payload is frozen
 
@@ -645,7 +693,7 @@ An each block's context is the one of the four whose value is not an expression 
 is the element, bound per item by the runtime. So the block binds the element under a name of its
 own -- `$$item` and the block's number, `$$` being Svelte's reserved prefix and the number keeping
 two nested blocks apart -- and every name the pattern binds is an expression over that one. A
-member of it is still a path the injector resolves per item, and costs what binding the name
+member of it is still a path the program reads per item, and costs what binding the name
 directly used to; everything else is a derivation over the binding, which is what a derivation
 reading an each's name already is. The IR node is one shape either way, which is what
 [ir.md](ir.md) records.
@@ -768,9 +816,9 @@ is a reference the runtime resolves, and that is all. The category is this compi
 **And a bare global is the same answer.** A name no script in the file writes is one the host
 resolves, and Svelte's render resolves it while it writes; a derivation resolves it per request the
 same way. `runtime-legacy`'s `globals-deconflicted` -- `<p>{frag}</p>` over a `globalThis.frag` its own
-config sets before rendering -- is that. A typo is not made silent by it: the evaluator reads its
-scope through `with`, so a name the host has not got throws `ReferenceError` per request, as the
-server render does. A backend whose evaluator has no host answers `undefined` there, and that is
+config sets before rendering -- is that. A typo is not made silent by it: a name no layer holds is
+left as written ("A name is resolved when the program is written"), so a name the host has not got
+throws `ReferenceError` per request, as the server render does. A backend whose evaluator has no host answers `undefined` there, and that is
 the backend's to measure. What is still refused at the compile is a name a script **writes** that
 the walk could not bind, which is this compiler failing to follow a binding rather than the host's.
 
@@ -796,7 +844,7 @@ instead, which asks the same kind of question of Svelte's own helpers.
 ## A rest on the entry is gathered from the payload itself
 
 `let { a, ...others } = $props()` on the entry: `others` is every key the request brought that the
-pattern did not name. A derivation reads its scope through `with`, which binds an object's keys and
+pattern did not name. A derivation read its scope through `with`, which binds an object's keys and
 not the object, so there used to be nothing to gather them from and the rest was refused. `GIVEN`
 is that object -- the name a `$props()` given a name rather than destructured already binds -- so
 the rest is `$$exclude_from_object(GIVEN, [...the named props])`, which is the same helper a
@@ -813,7 +861,7 @@ ahead of the rest element for exactly that reason, and leaves a pattern without 
 `undefined`, and does not cover `null`.
 
 The derivation that stands over the payload's key used to carry the test in its expression,
-`typeof x === 'undefined' ? (d) : x`. That is a different question. An expression reads its scope
+`typeof x === 'undefined' ? (d) : x`. That is a different question. An expression read its scope
 through `with`, which asks the payload whether it has the name and falls through to the globals
 where it does not -- so `export let Math = { min: ... }` resolved `Math` to the global, `typeof`
 said `object`, and the default was never taken. Svelte wrote `potato`; this wrote `5`.
@@ -823,7 +871,7 @@ that applies it. See `Derivation.prop`.
 
 **Every prop the entry declares stands over its key, default or not.** The one with no default
 holds `undefined` and compiles no expression; its whole job is that the name is in scope. An
-expression reads its scope through `with`, which asks the payload whether it has the name and falls
+expression read its scope through `with`, which asks the payload whether it has the name and falls
 through to the globals for a key it has not got -- so `class:unused` over a prop the request did
 not send threw `unused is not defined` per request, where Svelte's `$props()` destructuring makes
 it `undefined` and writes no class. Nine of Svelte's samples were that, and a missing prop is the
@@ -1049,7 +1097,7 @@ nothing differing for something differing, which is the one trade [suite.md](sui
 against.
 
 **Held means one derivation, named, and read by that name.** A derivation is computed once per
-request and cached, and an expression reads its scope through `with`, so one derivation may name
+request and cached, and a name one expression reads may be another derivation's, so one may name
 another -- `__d1` becomes `(__d0).includes(item)` and resolves, tested. What changes is the
 substitution: the prop expands to the derivation's name rather than to the caller's text. The
 reference is recorded under the **caller's** file chain, not the child's, since the value is the
@@ -1159,10 +1207,10 @@ constant, and each is where the next reader will look for it:
   `<Child bind:value>` settled the caller's `value` and the child's reads of its own `value` --
   its prop -- were written over with the caller's ternary. `Site.sends` is keyed with `keyed()`
   now, and `Walk.sent` is `sentFor()`'s view of one file's entries.
-- **A scoped derivation naming another reads its value for the same stack.** `derive`'s `stacked()`
-  handed an expression the function the injector calls per item, so `__d0.value` was `undefined`
-  under every item; it calls the function with the stack now, once per evaluation, and a promise
-  reads as its value once it settles. It costs a render of the child per derivation naming the
+- **A scoped derivation naming another reads its value for the same item.** The evaluator handed an
+  expression the function the walk called per item, so `__d0.value` was `undefined` under every
+  item; the program calls it with the names the reader has, and a promise reads as its value once it
+  settles. It costs a render of the child per derivation naming the
   run, since a scoped value is not held across items; the run caches by props object identity and
   these are fresh per call, which is the cost to measure if a page pays it.
 
@@ -1189,7 +1237,7 @@ that object, and `$$slots` which slots it was given. `transform-server.js` build
 `$$props`: `sanitize_props($$props)`, `rest_props($$sanitized_props, [named])`,
 `sanitize_slots($$props)` -- each Svelte's own function over the object.
 
-An expression reads its scope through `with`, which binds the payload's **keys** and not the
+An expression read its scope through `with`, which binds the payload's **keys** and not the
 object, so all three had nothing to be built from. The evaluator binds the payload under `GIVEN`
 now, a `$$` name nothing an author writes can shadow and Svelte's compiler refuses in markup, which
 is what keeps an expression naming it from being handed back to the render. The three names expand
@@ -1580,8 +1628,8 @@ Svelte's `hydratable(key, fn)` records `fn()` under `key` while a render runs, a
 writes every value it recorded into a `<script>` ahead of the head, for the client to read back
 instead of running `fn` again. A derivation runs outside any render. So the name is not Svelte's
 where a derivation reads it: the carried bundle stands a marked function in for the import
-(`carry.ts`), and `derive` binds every name so marked to the request's own `hydratable`, over a
-table made once per request (`hydratables` in `pkgs/injector/src/hydratable.ts`). The injector
+(`carry.ts`), and the program binds every name so marked to the request's own `hydratable`, over a
+table made once per request (`hydratables` in `pkgs/injector/src/hydratable.ts`). The program
 writes that table as the script, byte for byte what `#hydratable_block` writes -- the values through
 Svelte's own devalue `uneval`, a promise as `r(...)` once it settles, `nonce` on the tag where the
 server hands one, and the tag's sha256 back as `hashes` where it asks for a hash instead. Nothing is
@@ -1602,7 +1650,8 @@ and before its own markup, so the walk takes its top-level calls as eager deriva
 order it enters the children (`ownCalls()` in `descend.ts`), where the child renders once whatever
 the request -- every block around it a branch the build fixed, or a boundary's own body -- and its
 script is substituted rather than run. A piece of the page a boundary's run reads binds the page's
-own `hydratable` to the request's, as the derivation's own names are (`within()` in `derive`).
+own `hydratable` to the request's, as the derivation's own names are (`within` in
+`pkgs/program/src/names.ts`).
 
 The script the build's own render wrote is taken off the head (`unhydrated()` in `skeleton.ts`): its
 values are the build's stand-ins. Where it holds more keys than the walk made calls, a call was made
@@ -1774,7 +1823,7 @@ determined. The entry's run answers it:
   makes its call again. A change through a member -- `log.push(x)`, `reads[k] += 1` -- is made to the
   value itself, which a derivation holding that value changes as the render does, and is left
   alone. Those names count as the request's wherever the walk asks, a write of one included.
-- _Each read is read where the render reads it._ A derivation is computed when the injector reaches
+- _Each read is read where the render reads it._ A derivation is computed when the program reaches
   it, which is render order; a read of the run's state is marked with its place, so two reads
   written alike stay two reads, and inside an `{#each}` it is one per item. A caller's expression
   that reaches a child's hole is written the same way, but for a name a file nearer the hole
@@ -1890,10 +1939,9 @@ budget, and that is a deployment choice rather than a rule here.
   variable the same function is called per item. Nothing else changes: no component runs, no
   markup is rendered, and the expression is the author's own, unrewritten, as every other one is.
 
-  So a scoped derivation is carried into the scope as a function of the scope stack rather than as
-  a value, tagged so the injector calls it at the point of use instead of writing it out. A path
-  rooted at an each binding is unaffected -- `{x.name}` was always resolved per item by the
-  runtime, and the two now differ only in whether a function is called on the way.
+  So a scoped derivation is written as a function of the names it reads, called at the point of use
+  instead of computed before. A path rooted at an each binding is unaffected -- `{x.name}` was always
+  resolved per item, and the two differ only in whether a function is called on the way.
 
   The cost is real and worth naming: an expression inside an each is evaluated once per item rather
   than once per request, so a list of a thousand is a thousand calls. That is what the author wrote,
@@ -1918,7 +1966,7 @@ a request that took another branch threw. The artifact had already been written 
 refusal arrived per request rather than at the build, which is the one thing
 [refusals.md](refusals.md) says a refusal must not do.
 
-Each is a getter on the scope now, computed once on first read. A route also stops paying for the
+Each is a function of the request now, computed once on first read and kept. A route also stops paying for the
 branches it did not take, which on a page joined out of several structures is most of them.
 
 **A prop's default is the exception and is marked `prop`.** It stands _over_ a payload key rather
@@ -1932,13 +1980,15 @@ the request omitting it is exactly when the default matters.
 A project in Svelte's async mode writes `await` in markup, and some of those land where this
 compiler keeps a derivation whatever the value: an `<option>`'s `selected`, an each body's item, a
 local function inlined into one. **Such a derivation is built `async`**, and one that reads another
-that waits awaits those names first, since `with` would otherwise hand it the promise -- to the
-fixed point, in `derive`. The injector waits on what they return: its walk is a generator driven
-synchronously until the first promise and asynchronously after (`drive`), so an artifact with
-nothing to await injects exactly as it did, and `inject` returns a promise only where one waited.
-Kit awaits what the root's render returns under the same mode.
+that waits awaits those names first, since it would otherwise read the promise -- to the fixed point
+(`waits()` in `pkgs/program/src/model.ts`). The program waits on what they return: where any
+derivation waits, its walk is a generator driven synchronously until the first promise and
+asynchronously after (`drive`), so a program with nothing to await is a plain function, and a render
+returns a promise only where one waited. A rejection is thrown back into the walk where it waited,
+which is where a boundary's `try` catches it. Kit awaits what the root's render returns under the
+same mode.
 
-**Only a derivation's own promise is waited on**, marked when `derive` makes it. A value that is a
+**Only a derivation's own promise is waited on**, marked when the program makes it. A value that is a
 promise is otherwise a value: `{#await p}` over a promise the request hands in decides on it, and
 waiting on every thenable took that decision away from `runtime-legacy/await-set-simultaneous-
 reactive` the first time.

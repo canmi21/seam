@@ -1,8 +1,9 @@
 # The intermediate representation
 
-The IR is what the compiler produces and the server consumes. It is the artifact the whole
-rewrite exists to introduce: v1 had no shared typed representation, and the thing that crossed
-between the two halves was a string.
+The IR is what the compiler produces and the route's program is written from. It is the
+representation the whole rewrite exists to introduce: v1 had no shared typed representation, and
+the thing that crossed between the two halves was a string. **It stops at the build**: what a
+server runs is the program the build writes from it ("A route is one program", below).
 
 ## What it is
 
@@ -26,10 +27,36 @@ The speed is not the reason. Neither number is close to mattering against a budg
 hundred microseconds. **The reason is that two of those three parsers stop existing**, and with
 them the class of bug where the extractor and the injector disagree about what a marker means.
 
+## A route is one program
+
+**The build writes each route's IR and derivations as one program, and a request runs it once.**
+`@seam-js/program` lowers the tree into the statements that write it: a static run is a string
+literal, a slot its value escaped, an `if` an `if`, an `each` a loop over what Svelte's
+`ensure_array_like` makes of its source, a `call` a function of the fragment's parameters, a
+title and an id the counters `set_title` and `props_id` keep. A derivation is a function of the
+request computed when first read, or, where it reads what a block binds, a function of those names
+called where the walk reads it. Every name an expression reads is resolved when the program is
+written, to what it meant where the author wrote it ([derivation.md](derivation.md), "A name is
+resolved when the program is written"); nothing is looked up by name while it runs.
+
+It replaced a walk of this tree per request that called into the engine once a hole: each
+derivation a `new Function` reading its names through nested `with` over a proxied scope stack, the
+walk a generator stepping every node. On `status` that was about 91,000 evaluations and 540,000
+proxy traps a request, and a request cost three times Kit's; the program costs what Kit's render
+does ([conformance.md](conformance.md), "Stage 3"). What Svelte's bytes need of a runtime and are
+rules rather than values -- escaping, `hydratable`'s script, stepping through what waits -- stays a
+library the program is handed, `@seam-js/injector/runtime`, so the program imports nothing.
+
+The program is a script, sloppy as `new Function` makes it since the expressions are the author's
+own and were evaluated so; it holds no `with`, reads nothing of Node's host, and the carried bundle
+goes before it in the one file a route ships ([build.md](build.md), "A route is one script, and
+every backend runs it"). The suite runs every corpus case's script in QuickJS and holds its bytes
+to Node's.
+
 ## Node kinds
 
 Five, and the tree bottoms out in strings. `body` and `head` are the two streams Svelte renders
-and the two the injector produces; `title` and `styles` are channels it keeps beside them. A component that
+and the two the program writes; `title` and `styles` are channels it keeps beside them. A component that
 uses none of the three leaves `head` and `title` empty.
 
 ```json
@@ -234,7 +261,7 @@ The unit is still the component. A bundle carries the entry and everything reach
 and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
 bundle does not carry is named rather than skipped.
 
-## A boundary that may throw is a block of its own, lowered to an `if`
+## A boundary that may throw is a block of its own, and a `try` in the program
 
 `renderer.boundary` writes one of two shapes: `<!--[-->`, the children, `<!--]-->` where they do not
 throw, and `<!--[?`, `transformError(error)` as JSON, `-->`, the `failed` snippet over that value,
@@ -364,7 +391,42 @@ the failed branch's open is told to open again.
 fragment the run did not define. Each computes in an order of its own that the recorded holes and
 blocks do not say.
 
+### A boundary is a `try`
+
+**The program writes a boundary as `renderer.boundary` renders one.** The lowering writes the block
+as an `if` whose test is `!($$caught(...)).threw` and whose other branch is the `failed` snippet,
+and the program knows that shape: the children are written into a buffer of their own inside a
+`try`, kept where nothing threw, and otherwise thrown away for the request's `transformError` of
+what did and the snippet over it, its JSON first. Every value is computed once, where it is
+written, and what throws is what Svelte's render would have thrown at that point. **The run is not
+evaluated**: what it was for -- learning whether the children throw before writing either branch --
+is what the `try` is.
+
+A guard inside one lets the throw through. `$$tried` is the program's own while a boundary's `try`
+is open, and the carried helper's, which swallows, everywhere else; `$$caught` reads what the
+nearest boundary of its key came to, which is how the `failed` snippet reads its value and its
+JSON. Both fall back on the carried helpers, and so on the run, where the program finds no body
+half to write a boundary from -- one whose children write only a head.
+
+**The head half reads what the body half came to.** The body is written before the head, so the
+head's copy of the block reads the outcome its body half recorded, by key, or in order for a
+boundary computed per item. Where only the head half throws, the boundary failed, as it does in
+Svelte, whose children write both halves into one renderer: the head writes the snippet, the
+title channel is put back as it stood, and the body half is written again as the snippet, at the
+place it was written. A per-item boundary whose head alone throws has no place kept, and the throw
+leaves the page.
+
+A rejection a boundary's children wait on reaches the `try` the same way: `drive` throws it back
+into the program where it waited, rather than out of the render.
+
+Measured on `status`, under Kit's root boundary at every level: the run computed every value of
+the page inside its catch and the walk computed each item's again, 36 ms of a 43 ms render; as a
+`try`, the render is the walk alone.
+
 ### A value is computed once, by the run, and the hole reads it
+
+_This is how the run computed once what the holes would read, and it holds where the run is still
+evaluated; the program computes a value once where it writes it, above._
 
 Svelte computes each of a boundary's values once, inside its catch, and writes what it computed. The
 run and the holes are two readers of that one computation, and each used to make it: the run to
@@ -472,9 +534,10 @@ What survives here is the shape: a chunk is opaque, the runtime never inspects i
 emits an anchor of its own. That was the point of baking them in and it is unaffected by where
 they now come from.
 
-## Expressions are not evaluated
+## The IR holds paths, and the program holds the expressions
 
-**`test` and `path` are data paths. They are never expressions.**
+**`test` and `path` are data paths. They are never expressions.** _Settled_: the expressions are
+the program's ("A route is one program").
 
 **Every backend has a JavaScript engine.** Rust serves with QuickJS, which is always in the
 process, or with Node beside it; there is no Rust backend without an engine, and no route is ever
@@ -484,12 +547,11 @@ component with no JavaScript engine, that a compiled backend chose whether to em
 `cfg` flag, and that a manifest field `expressions` answered it. None of that was built, and it no
 longer stands.
 
-So the rule above is how the IR is today, and its reason is gone. Holding a path where the author
-wrote an expression makes every value a call out of the walk into the engine, one per hole; on
-`status`, about ninety thousand a request, each through a `with` chain and a proxied scope, and
-that is most of why the request costs several times Kit's ([conformance.md](conformance.md),
-"Stage 3"). **Whether the request-time half stays a walk calling into the engine per hole, or
-becomes one program per route the engine runs once, is open** -- [roadmap.md](roadmap.md), "Owed".
+So the rule above is how the IR is, and its old reason is gone. What holds it in place now is that
+the IR is the lowering's output and the program's input: a path names a derivation, and the
+derivation is an expression the program writes once with its names resolved. Holding a path where
+the author wrote an expression made every value a call out of a walk into the engine, one per
+hole, and that was the request-time half's cost until the walk became the program.
 
 `data.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
@@ -527,7 +589,9 @@ causes apart.
 
 `each` binds `item` for the extent of its body, and `index` beside it rather than through it,
 which is what the `for` loop Svelte compiles to does with its own variable. Path resolution walks
-a scope stack: entering an `each` pushes the bindings, leaving it pops.
+a scope stack: entering an `each` pushes the bindings, leaving it pops. In the program the stack is
+the program's own nesting: an item is a `const` of the loop that binds it, and a name is the
+innermost one in scope.
 
 Chosen over v1's `$.` prefix convention because prefixes collide under nesting -- two nested
 `each` blocks have no way to say which `$` they mean, while named bindings shadow in the ordinary
@@ -589,7 +653,7 @@ for (const { hash, code } of renderer.global.css) {
 **Three parts, and the third is `styles`.** `css: 'injected'` puts a component's stylesheet in the
 head, and that line appends one after the title. They are constant bytes -- the hash and the code
 come out of the compile -- and they sit after both of the others, so they are a stream of their own
-rather than part of either. The head the injector writes is the blocks, then the title, then these.
+rather than part of either. The head the program writes is the blocks, then the title, then these.
 The split is on `<style id="svelte-`, the id Svelte writes, rather than on `<style` alone: an
 author may put a `<style>` in a `<svelte:head>` of their own, and where a component has no title
 the two would otherwise be indistinguishable.

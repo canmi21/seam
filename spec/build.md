@@ -87,7 +87,16 @@ The exported name of the plugin is the one place the product name appears in an 
 a distribution question rather than a naming one, which [naming.md](naming.md) leaves outside its
 rule.
 
-## The artifact is data, and that is not a preference
+## The artifact was data, and is a program
+
+_Superseded._ **A route's artifact is the program that writes its bytes**, and the IR stops at the
+build ([ir.md](ir.md), "A route is one program"). What decided it is that every backend carries a
+JavaScript engine -- QuickJS in Rust's, Node beside it in D ([roadmap.md](roadmap.md)) -- so a tree
+walked in one language calling into the engine once a hole bought nothing a program does not, and
+cost three times Kit's render on `status`. What follows is why the artifact was data, kept because
+its measurement still holds of data: what it argued against was data copied into JavaScript, and a
+program is not that. The rule it served, one artifact that every backend reads the same way, holds
+of the program ("A route is one script, and every backend runs it", below).
 
 Every framework surveyed emits its server half as a single JavaScript module, and the reason is
 not performance. It is that **their server artifact is code and code has only one spelling**.
@@ -166,7 +175,8 @@ JavaScript artifact and the Rust server read JSON, the two would no longer be re
 thing, and a second axis of divergence would exist for no gain: reading JSON costs TypeScript
 nothing and measured faster.
 
-**The artifact is one format. Two backends read it.**
+**The artifact is one format. Two backends read it.** It is a script now, and both run the same one
+in an engine of their own: Node's, or QuickJS in Rust's.
 
 ## What is produced, and where
 
@@ -177,11 +187,9 @@ dist/
     _app/*.css
     <assets>
   server/          read by the backend, never served
-    <id>.json      the IR and its derivations
-    <id>.js        the carried bundle, where the component carries anything
+    <id>.js        the route's program, the carried bundle before it
     app.html       the document shell, with its two placeholders
-    manifest.json  which URL is which artifact, the tags its document needs, and whether
-                   anything here has to be evaluated rather than walked
+    manifest.json  which URL is which script, and the tags its document needs
 ```
 
 The two directories are a boundary rather than a symmetry. **A server artifact must not be
@@ -189,16 +197,26 @@ reachable as a static file**: it holds the component's structure and, in time, w
 refused and why. A directory enforces that; an exclusion list is a thing somebody eventually
 forgets to update.
 
-### The one artifact that is code
+## A route is one script, and every backend runs it
 
-`<route>.js`, the carried bundle, is JavaScript because it is the source of the functions a
-derivation calls, and `derive` evaluates it. It is still an **artifact**, not part of the server
-program, and it does not get bundled into one.
+`<route>.js` is the carried bundle -- the functions the expressions call, assigning `__carried` --
+and the route's program after it, assigning `__program`. A backend evaluates it once a process and
+calls what it returns once a request: `evaluated()` in `@seam-js/injector/runtime` hands the program
+that module, which is everything it calls, so the script imports nothing and has no module loader
+to need. It is still an **artifact**, not part of the server program, and it does not get bundled
+into one: a Rust backend evaluates this file too, in QuickJS, with a runtime of its own beside it,
+and the two must run code that arrived by the same route.
 
-The reason is the rule above. A Rust backend reads this file too and hands it to its evaluator. If
-the TypeScript server bundled it into its own program while Rust read it from disk, the two would
-be running code that arrived by different routes, which is the divergence this whole section
-exists to prevent.
+**Nothing in it reads Node's host.** The suite runs every corpus case's script in QuickJS with the
+runtime bundled as a backend that is not Node would carry it, and holds its bytes to Node's
+(`quickjs.test.ts` in `pkgs/program`). The runtime's one part that does read the host is
+`hydratable`'s script, which serialises with Svelte's own devalue and hashes with the host's
+sha256; a program makes its table only where a derivation calls `hydratable`, and how a backend that
+is not Node writes that script is C's to answer ([roadmap.md](roadmap.md)).
+
+**The manifest says which script answers which URL, and nothing about engines.** It said whether
+anything had to be evaluated rather than walked, for a backend choosing whether to embed an engine;
+every backend has one, so the field is gone.
 
 ## A route is a URL and a root component
 
@@ -593,7 +611,7 @@ were loops that are sequential because of what they do:
 
 - the structure queue in `compile.ts` grows while it is walked, an `Undecided` adding the runs
   its test splits into, so the loop has no end to fan out to;
-- the injector's `drive` feeds a generator one step at a time, each step's input the last one's
+- the runtime's `drive` feeds a generator one step at a time, each step's input the last one's
   answer;
 - a structure, a route and an alternate branch are rendered one at a time, for the memory a render
   holds and for a deadline that is per render -- see "The memory a compile holds", and "One

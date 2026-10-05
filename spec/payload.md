@@ -9,7 +9,7 @@ never says what a prop is, where it comes from, or who guarantees it is there.
 Two lines, one on each side, and nothing in between them:
 
 ```ts
-resolve([payload], 'p.name'); // the injector
+resolve([payload], 'p.name'); // the route's program
 hydrate(Component, { props: JSON.parse(text) }); // the client
 ```
 
@@ -51,7 +51,7 @@ separates the shape of the payload from the shape of the component's props, and 
 separation there is nowhere to put anything that is not the author's data. `__d0` sitting beside
 `p` at the top level is that missing separation showing.
 
-Derived fields belong to the injector and go no further. **The wire carries `data`; the derived
+Derived fields belong to the program and go no further. **The wire carries `data`; the derived
 fields are computed on the way to injection and are not serialized.**
 
 **The shape is Kit's, in two layers.** A page is one component among several: its layouts sit
@@ -65,7 +65,7 @@ the target" -- and the compiler's payload is the root's props, which are what Ki
 branch holding what Kit's tree holds at that node, the levels above it merged with its own.
 Inside the page `data.title` is still `data.title` and `params.slug` is `params.slug`; the walk
 substitutes the root's prop into each and the IR paths come out as `data_2.title` and
-`page.params.slug`, and the injector's top scope is the object the runtime builds from the nodes
+`page.params.slug`, and the program's top scope is the object the runtime builds from the nodes
 and the request, `{ data_0, ..., data_n, page, form, error }`. The principle above holds at both layers:
 each component reads one prop named `data`, and nothing but the author's data crosses the wire.
 

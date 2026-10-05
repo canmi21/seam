@@ -141,7 +141,7 @@ loaded components, `(($$loaded(x) === "src/.../Thing.svelte") ? __seam_loaded_0 
 imported into the file under a name of its own, relative to the file as an author would write it
 (`loadedChosen` in the skeleton). Each test is the request's, so the build renders once per
 component and joins the structures, as it does for any `?:` between components; the last link is
-the value itself, and the unnamed rule's as before. `$$loaded`, one of `derive`'s helpers, looks
+the value itself, and the unnamed rule's as before. `$$loaded`, one of the runtime's helpers, looks
 the value up in a map from component to path that the dispatcher hands under `seam:loaded`: the
 dispatcher is bundled by Kit's server build and imports each loaded component itself, so its import
 is the module the `load` returned and the identity holds. The compile writes the paths to
@@ -276,7 +276,7 @@ the move costs this layer, each a fact of the diff rather than a guess:
      `@sveltejs/kit`'s root export is Kit's own too, since Kit reads what a page throws by class --
      `isRedirect`, `instanceof HttpError` -- and a copy bundled into the carried bundle is another
      class, which turned `error(404)` and every `redirect()` into a 500. And what a derivation
-     throws leaves the dispatcher as the author threw it, `derive`'s `DerivationFailed` taken off,
+     throws leaves the dispatcher as the author threw it, the runtime's `DerivationFailed` taken off,
      so that Kit's redirect and status handling see the error itself;
      `$app/manifest` is written after the compile, some of it after prerendering; the dynamic
      environment is filled into two objects, `rendered_env` and `dynamic_private_env` of Kit's
@@ -424,8 +424,8 @@ across, and what is left is [roadmap.md](roadmap.md)'s milestones.
 build` runs its server build first and the plugin takes part in that one only: when it starts,
    the routes are compiled and the artifacts emitted into the server output as assets, reached by
    the URLs the bundler gives them so an adapter carries them with the program; and Kit's root
-   is resolved to a component that renders a page from its artifact -- `inject(ir, derive(props))`
-   pushed into the renderer Kit's `render(Root, ...)` made (Kit 2's generated `root.js` and its
+   is resolved to a component that renders a page from its artifact -- the route's program called
+   with the props, its body pushed into the renderer Kit's `render(Root, ...)` made (Kit 2's generated `root.js` and its
    `root.render(props)` before that; see "SvelteKit 3 is the target" above). The compile-time
    render itself loads its staged copies
    through a Vite server made from the project's own config, in production mode with HMR off, so

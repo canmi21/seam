@@ -999,9 +999,10 @@ Svelte catches it and writes the `failed` snippet instead of the children, handi
 `transformError(error)` -- `Renderer`'s own option, defaulting to a function that rethrows. Filed as
 a render option an artifact has nowhere to hold; it is part of the render input
 [payload.md](payload.md) splits from the hydration wire, reaching the derivations as `$$options`
-beside Kit's CSP in the injector. The boundary is a block of its own in the skeleton, lowered to an
-`if`: [ir.md](ir.md), "A boundary that may throw is a block of its own, lowered to an `if`", which
-also holds the children computed in render order, components and blocks included.
+beside Kit's CSP in the program. The boundary is a block of its own in the skeleton, lowered to an
+`if` and written by the program as a `try`: [ir.md](ir.md), "A boundary that may throw is a block of
+its own, and a `try` in the program", which also holds the children computed in render order,
+components and blocks included.
 
 **The eight samples that write this shape had never been measured**, because they hand `render()`
 a `transformError` in their own `_config.js` and the suite did not read it, so neither side

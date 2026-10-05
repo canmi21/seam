@@ -45,8 +45,8 @@ nothing is published: a release of the scope would name a plugin no released ent
 | `pkgs/skeleton`  | `@seam-js/skeleton`                               |
 | `pkgs/ast`       | `@seam-js/ast`                                    |
 | `pkgs/carry`     | `@seam-js/carry`                                  |
-| `pkgs/derive`    | `@seam-js/derive`                                 |
 | `pkgs/injector`  | `@seam-js/injector`                               |
+| `pkgs/program`   | `@seam-js/program`                                |
 | `pkgs/lowering`  | `@seam-js/lowering`                               |
 | `pkgs/routes`    | `@seam-js/routes`                                 |
 | `pkgs/create`    | `create-seamjs`                                   |
@@ -92,7 +92,7 @@ sees as a string.
 `mise run pack` builds `wasm`, compiles every package with tsdown and writes one tarball per
 package into `.build-pack/`, with `workspace:*` already rewritten. Nothing publishes: the tarballs
 go up with `npm publish <file>`, run by hand, dependencies before what depends on them -- `ast`,
-`injector`, `derive`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry, then
+`injector`, `program`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry, then
 `create-seamjs`.
 
 **A tarball is checked where a user would meet it**: installed into a fresh Kit 3 project outside

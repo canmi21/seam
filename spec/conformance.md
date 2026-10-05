@@ -486,15 +486,26 @@ child's script is asked of the render"); a spread's keys hidden by the boundary'
 server's environment read through a module ("The environment a server starts with is read per
 request"); a package component's head anchor hashed by its link rather than its real path
 ([build.md](build.md), "A filename is an input to the bytes"); and a `style:` directive's value
-read through no file. **The cost does not meet the bar yet**: a request takes about 230 ms of CPU
-through the fork against 65 ms through Kit -- from 640 ms, once an instance and a computing
-`{@const}` were made once ([derivation.md](derivation.md), "An instance is made once"). What is
-left is how a derivation is evaluated, not what: a page wholly inside Kit's root boundary has every
-value computed by the boundary's run and again by its hole wherever it sits in an each, since the
-hole cannot name which item's run it was (ir.md, "A value is computed once, by the run, and the
-hole reads it"); and each of the many thousand per-item evaluations goes through `with` and a
-proxied scope, which V8 runs far slower than Svelte's compiled render runs the same expression.
-Measured by the harness in `.local/status`, which builds, compares and times both.
+read through no file.
+
+**The cost is Kit's, within two percent.** A request took about 640 ms of CPU through the fork
+against 65 ms through Kit, then 230 ms once an instance and a computing `{@const}` were made once
+([derivation.md](derivation.md), "An instance is made once"); what was left was how a derivation
+was evaluated, and the request-time half became one program per route ([ir.md](ir.md), "A route is
+one program"). Measured on the same machine, the page 5.1 MB:
+
+|                                     | through Kit | through the fork |
+| ----------------------------------- | ----------- | ---------------- |
+| eight at a time, p50                | 467 ms      | 417 ms           |
+| eight at a time, 20 ms a query, p50 | 828 ms      | 774 ms           |
+| one at a time, wall                 | 72.9 ms     | 74.2 ms          |
+| one at a time, CPU                  | 80.5 ms     | 82.3 ms          |
+
+Under load the fork answers sooner; one request at a time it takes about 1.3 ms longer, which is
+inside what two runs of the same server differ by and is not less than nothing. The render alone
+is about 34 ms against Kit's 32, of which 25 ms is the page's own `dailyOf` and `historyOf`, run as
+often as Kit runs them. Measured by the harness in `.local/status`, which builds, compares and times
+both.
 
 **The harness is local.** It lives in an ignored directory of this repository, since the
 application is the author's own and the data is made up for it; what it found goes here.
