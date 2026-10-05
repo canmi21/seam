@@ -276,18 +276,33 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
 }
 
 /**
- * Compiles a project and writes its server artifacts.
- *
- * ```
- * <out>/server/<id>.js     the route's program, the carried bundle before it
- * <out>/server/manifest.json
- * ```
- *
- * The client half is not written here. What shape it takes, and who owns the document shell it is
- * referenced from, are settled at the plugin step; until then the manifest says so rather than
- * guessing. See spec/build.md.
+ * One route compiled, before anything is written: its structures joined into the one the program
+ * is written from, and what each structure's expressions call, by the file that wrote each name.
  */
-export async function compile(options: Options): Promise<Report[]> {
+export interface Route {
+	id: string;
+	path: string;
+	/** The entry component, resolved. */
+	file: string;
+	structure: Structure;
+	names: Map<string, Carried[]>;
+	/** Every component the entry reaches, relative to the root: what a change to the route is. */
+	components: string[];
+}
+
+/** Every route compiled, the ones left to the framework, and what the compile has to say. */
+export interface Built {
+	routes: Route[];
+	left: Record<string, string>;
+	warnings: string[];
+}
+
+/**
+ * The routes compiled and nothing written: what `compile` writes as the artifact layout, and what
+ * the dev server holds in memory, a route at a time. A refusal throws, listing every one. See
+ * spec/build.md, "The dev server compiles a route when it is asked for".
+ */
+export async function built(options: Options): Promise<Built> {
 	const root = resolve(options.root);
 	configureUnnamedComponents(options.refuseUnnamedComponents === true);
 	configureLoadedComponents(
@@ -298,8 +313,6 @@ export async function compile(options: Options): Promise<Report[]> {
 			]),
 		),
 	);
-	const server = resolve(options.out, 'server');
-
 	// Every entry, then every refusal, rather than the first one. An author fixing a build wants
 	// the list, and stopping at the first turns one build into as many as they have mistakes.
 	//
@@ -371,6 +384,51 @@ export async function compile(options: Options): Promise<Report[]> {
 		);
 	}
 
+	// Back to one entry per route: the runs made for one route are joined into the structure that
+	// carries all of its structures, under an if over the paths their values were fixed at.
+	const routes: Route[] = [];
+	for (let at = 0; at < prepared.length;) {
+		const one = prepared[at] as (typeof prepared)[number];
+		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
+			fixed: each.fixed,
+			decided: decidedAs(each),
+			held: each.skeleton.held,
+			compiled: lowered[at + index] as unknown as Structure,
+		}));
+		const together = merged(prepared.slice(at, at + one.of).map((each) => each.names));
+		const components = new Set(
+			prepared.slice(at, at + one.of).flatMap((each) => Object.keys(each.markup.components)),
+		);
+		at += one.of;
+		routes.push({
+			id: one.id,
+			path: one.path,
+			file: one.file,
+			// The entry declares the same props in every run, so the defaults are the entry's.
+			structure: joined(one.id, runs, one.skeleton.defaults, one.skeleton.eager),
+			names: together,
+			components: [...components],
+		});
+	}
+	return { routes, left, warnings };
+}
+
+/**
+ * Compiles a project and writes its server artifacts.
+ *
+ * ```
+ * <out>/server/<id>.js     the route's program, the carried bundle before it
+ * <out>/server/manifest.json
+ * ```
+ *
+ * The client half is not written here. What shape it takes, and who owns the document shell it is
+ * referenced from, are settled at the plugin step; until then the manifest says so rather than
+ * guessing. See spec/build.md.
+ */
+export async function compile(options: Options): Promise<Report[]> {
+	const server = resolve(options.out, 'server');
+	const { routes: compiled, left, warnings } = await built(options);
+
 	// Written only once every component has compiled, so a refused build leaves the previous
 	// artifacts alone rather than half of a new one beside half of an old one.
 	rmSync(server, { recursive: true, force: true });
@@ -383,22 +441,9 @@ export async function compile(options: Options): Promise<Report[]> {
 	// those are questions about the file rather than about the address. See spec/build.md.
 	const routes: Record<string, { id: string; script: string; head: string }> = {};
 
-	// Back to one entry per route: the runs made for one route are joined into the artifact that
-	// carries all of its structures, under an if over the paths their values were fixed at.
-	for (let at = 0; at < prepared.length;) {
-		const one = prepared[at] as (typeof prepared)[number];
-		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
-			fixed: each.fixed,
-			decided: decidedAs(each),
-			held: each.skeleton.held,
-			compiled: lowered[at + index] as unknown as Structure,
-		}));
-		const together = merged(prepared.slice(at, at + one.of).map((each) => each.names));
-		at += one.of;
-		// The entry declares the same props in every run, so the defaults are the entry's.
-		const compiled = joined(one.id, runs, one.skeleton.defaults, one.skeleton.eager);
-		// One route, one bundle, over what every structure of it calls. See `Prepared.names`.
-		const carried = await timed('carry (derivation bundle)', () => carry(one.file, together));
+	// One route, one bundle, over what every structure of it calls. See `Prepared.names`.
+	for (const one of compiled) {
+		const carried = await timed('carry (derivation bundle)', () => carry(one.file, one.names));
 		const files: string[] = [];
 
 		// The route's program, with the bundle it calls before it: one script, which every backend
@@ -408,7 +453,7 @@ export async function compile(options: Options): Promise<Report[]> {
 		const scriptFile = `${one.id}.js`;
 		write(
 			resolve(server, scriptFile),
-			`${script(compiled, carried, carriedNames(together, one.file))}\n`,
+			`${script(one.structure, carried, carriedNames(one.names, one.file))}\n`,
 		);
 		files.push(scriptFile);
 
@@ -421,7 +466,7 @@ export async function compile(options: Options): Promise<Report[]> {
 			id: one.id,
 			path: one.path,
 			files,
-			derivations: compiled.derivations.length,
+			derivations: one.structure.derivations.length,
 		});
 	}
 

@@ -125,7 +125,7 @@ const decoded = (id: string, prefix: string): string =>
  * the one the render sets. See spec/derivation.md, "Where substitution cannot follow, the script
  * runs as Svelte compiled it".
  */
-export function running(): Plugin {
+export function running({ bare = false }: { bare?: boolean } = {}): Plugin {
 	return {
 		name: 'seam:run',
 		async resolveId(id, importer) {
@@ -141,7 +141,12 @@ export function running(): Plugin {
 		load(id) {
 			if (id.startsWith(RUN)) {
 				const file = decoded(id, RUN);
-				const server = resolveBare('svelte/server', file) ?? 'svelte/server';
+				// By name under the dev server, which resolves it as it resolves the component's own
+				// Svelte: a copy reached by its path is a second set of module state, and the context
+				// the render sets is not the one the component reads.
+				const server = bare
+					? 'svelte/server'
+					: (resolveBare('svelte/server', file) ?? 'svelte/server');
 				const read = projectAsync() ? 'await rendered;' : 'rendered.body;';
 				// The request's `hydratable` goes into the render's context, where the captured script's
 				// reads it. See `captured()` in the ast package.
@@ -196,36 +201,7 @@ export async function carry(
 ): Promise<string> {
 	if ([...given.values()].every((names) => names.length === 0)) return '';
 	const entry = resolve(file);
-	const groups = rendering(given, entry);
-	// One import per name per file, under an alias no file wrote, and one object per file holding
-	// them under the names the file wrote: `files["src/a.svelte"].m`. The evaluator opens a file's
-	// object as a scope, so an expression reads `m` and gets that file's `m`.
-	const lines: string[] = [];
-	const objects: string[] = [];
-	for (const [at, [group, names]] of [...groups].entries()) {
-		const fields: string[] = [];
-		for (const [n, one] of names.entries()) {
-			const alias = `__c${String(at)}_${String(n)}`;
-			// Svelte's `hydratable` runs only inside a render, and a derivation runs outside one, so
-			// the name is carried as a mark the program binds to the request's own. See `HYDRATABLE`.
-			if (
-				fromSvelte(one.from) &&
-				one.kind === 'named' &&
-				(one.exported ?? one.local) === 'hydratable'
-			) {
-				lines.push(`const ${alias} = ${HYDRATABLE_MARK};`);
-				fields.push(`${JSON.stringify(one.local)}: ${alias}`);
-				continue;
-			}
-			// Svelte's own modules are named by file for the default bundler, which would otherwise
-			// take a copy from wherever the component sits; a bundler the project gave resolves them.
-			lines.push(restate(bundler === null ? ownSvelte(one) : one, alias));
-			fields.push(`${JSON.stringify(one.local)}: ${alias}`);
-		}
-		objects.push(`${JSON.stringify(group)}: { ${fields.join(', ')} }`);
-	}
-	lines.push(`export const files = { ${objects.join(', ')} };`);
-	const source = lines.join('\n');
+	const source = sourceOf(entry, given, bundler !== null);
 
 	// The aliases are in the key because they decide what a specifier resolves to, and the entry
 	// because resolution is relative to it. Everything else the result depends on is in `source`.
@@ -263,6 +239,58 @@ export async function carry(
 	} finally {
 		await bundle.close();
 	}
+}
+
+/**
+ * What a component carries as a module of its own, importing each name where it lives and
+ * exporting `files`: the module `carry` hands the bundler, and what the dev server loads as it is,
+ * where nothing is bundled. Svelte's own modules are named by file unless a resolver of the
+ * project's will resolve them, as the dev server's does. See spec/build.md, "The dev server
+ * compiles a route when it is asked for".
+ */
+export function carriedSource(
+	file: string,
+	given: ReadonlyMap<string, readonly Carried[]>,
+): string {
+	if ([...given.values()].every((names) => names.length === 0)) return '';
+	return sourceOf(resolve(file), given, true);
+}
+
+function sourceOf(
+	entry: string,
+	given: ReadonlyMap<string, readonly Carried[]>,
+	resolving: boolean,
+): string {
+	const groups = rendering(given, entry, resolving);
+	// One import per name per file, under an alias no file wrote, and one object per file holding
+	// them under the names the file wrote: `files["src/a.svelte"].m`. The evaluator opens a file's
+	// object as a scope, so an expression reads `m` and gets that file's `m`.
+	const lines: string[] = [];
+	const objects: string[] = [];
+	for (const [at, [group, names]] of [...groups].entries()) {
+		const fields: string[] = [];
+		for (const [n, one] of names.entries()) {
+			const alias = `__c${String(at)}_${String(n)}`;
+			// Svelte's `hydratable` runs only inside a render, and a derivation runs outside one, so
+			// the name is carried as a mark the program binds to the request's own. See `HYDRATABLE`.
+			if (
+				fromSvelte(one.from) &&
+				one.kind === 'named' &&
+				(one.exported ?? one.local) === 'hydratable'
+			) {
+				lines.push(`const ${alias} = ${HYDRATABLE_MARK};`);
+				fields.push(`${JSON.stringify(one.local)}: ${alias}`);
+				continue;
+			}
+			// Svelte's own modules are named by file for the default bundler, which would otherwise
+			// take a copy from wherever the component sits; a bundler the project gave resolves them.
+			lines.push(restate(resolving ? one : ownSvelte(one), alias));
+			fields.push(`${JSON.stringify(one.local)}: ${alias}`);
+		}
+		objects.push(`${JSON.stringify(group)}: { ${fields.join(', ')} }`);
+	}
+	lines.push(`export const files = { ${objects.join(', ')} };`);
+	return lines.join('\n');
 }
 
 /**
@@ -309,10 +337,11 @@ function restate(one: Carried, alias: string): string {
 export function carriedNames(
 	given: ReadonlyMap<string, readonly Carried[]>,
 	file: string,
+	resolving: boolean = bundler !== null,
 ): Record<string, { name: string; hydratable: boolean }[]> {
 	if ([...given.values()].every((names) => names.length === 0)) return {};
 	return Object.fromEntries(
-		[...rendering(given, resolve(file))].map(([group, names]) => [
+		[...rendering(given, resolve(file), resolving)].map(([group, names]) => [
 			group,
 			names.map((one) => ({
 				name: one.local,
@@ -336,11 +365,11 @@ export function carriedNames(
 function rendering(
 	groups: ReadonlyMap<string, readonly Carried[]>,
 	entry: string,
+	resolving: boolean,
 ): Map<string, Carried[]> {
-	const server =
-		bundler === null
-			? ownSvelte({ local: '', from: 'svelte/internal/server', kind: 'named' }).from
-			: resolveBare('svelte/internal/server', entry);
+	const server = !resolving
+		? ownSvelte({ local: '', from: 'svelte/internal/server', kind: 'named' }).from
+		: resolveBare('svelte/internal/server', entry);
 	const out = new Map([...groups].map(([group, names]) => [group, [...names]]));
 	if (server === null || !server.startsWith('/')) return out;
 	const from = resolve(dirname(server), 'context.js');

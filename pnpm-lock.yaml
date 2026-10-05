@@ -214,6 +214,9 @@ importers:
       '@seam-js/plugin':
         specifier: workspace:*
         version: link:../plugin
+      '@seam-js/routes':
+        specifier: workspace:*
+        version: link:../routes
       '@seam-js/stream':
         specifier: workspace:*
         version: link:../stream
@@ -404,6 +407,9 @@ importers:
 
   pkgs/plugin:
     dependencies:
+      '@seam-js/ast':
+        specifier: workspace:*
+        version: link:../ast
       '@seam-js/carry':
         specifier: workspace:*
         version: link:../carry
@@ -487,6 +493,9 @@ importers:
       '@seam-js/ast':
         specifier: workspace:*
         version: link:../ast
+      '@seam-js/runtime':
+        specifier: workspace:*
+        version: link:../runtime
     devDependencies:
       '@seam-js/carry':
         specifier: workspace:*

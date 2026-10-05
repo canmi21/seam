@@ -91,6 +91,7 @@ export const RUNTIME: Readonly<Record<string, string>> = {
 	$$rethrow: '$rt.rethrow',
 	$$loaded: '$rt.loaded',
 	$$env: '$rt.env',
+	$$html: '$rt.html',
 };
 
 /**

@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
 	APP_STATE,
 	projectAsync,
+	projectDevelopment,
 	projectOptions,
 	resolveBare,
 	RUNES_MODULE,
@@ -13,6 +14,7 @@ import {
 	isComponentFile,
 	componentStem,
 } from '@seam-js/ast';
+import { html } from '@seam-js/runtime';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
@@ -66,6 +68,12 @@ export interface Host {
 	staging: string;
 	/** Whether the host resolves what Node cannot, so that nothing is rewritten for it. */
 	bundler: boolean;
+	/**
+	 * Told each source a render compiles and stages, by its own path: a component or a runes module,
+	 * which the host loads as a copy and so never sees by its name. The dev server keeps them as what
+	 * a route depends on. See spec/build.md, "The dev server compiles a route when it is asked for".
+	 */
+	staged?: (file: string) => void;
 }
 
 const NODE: Host = {
@@ -102,18 +110,70 @@ export function rememberedStaging(): number {
 
 export async function shippable(): Promise<void> {
 	if (checked) return;
-	const { html } = (await host.module(
+	const svelte = (await host.module(
 		'svelte/internal/server',
 	)) as typeof import('svelte/internal/server');
-	const open = html('x');
-	if (open !== '<!---->x<!---->') {
+	const open = svelte.html('x');
+	// The dev server renders with the development runtime, whose anchor is a hash of the value: what
+	// the program writes per request there, and what `developed()` takes out of the render. See
+	// spec/build.md, "The dev server compiles a route when it is asked for".
+	const development = projectDevelopment() !== null;
+	const expected = development ? `${anchorOf('x')}x<!---->` : '<!---->x<!---->';
+	if (open !== expected) {
 		throw new Error(
-			`Svelte's development runtime is loaded: it writes \`${open}\` where a server writes ` +
-				'`<!---->x<!---->`, and the compiler would write that into the IR. The build is chosen ' +
-				'by NODE_ENV, which has to be `production` for a compile. See spec/pipeline.md',
+			development
+				? `Svelte's production runtime is loaded under the dev server: it writes \`${open}\` where ` +
+						`Kit's dev server writes \`${expected}\`. See spec/build.md`
+				: `Svelte's development runtime is loaded: it writes \`${open}\` where a server writes ` +
+						'`<!---->x<!---->`, and the compiler would write that into the IR. The build is chosen ' +
+						'by NODE_ENV, which has to be `production` for a compile. See spec/pipeline.md',
 		);
 	}
 	checked = true;
+}
+
+/** The anchor Svelte's development runtime opens a `{@html}` block holding `text` with. */
+function anchorOf(text: string): string {
+	return html(text).slice(0, -text.length);
+}
+
+/** The script a misplaced element writes into the head under Svelte's `dev`, once a process. */
+const MISPLACED =
+	/<script>console\.error\("node_invalid_placement_ssr: (?:[^"\\]|\\.)*"\)<\/script>/g;
+
+/**
+ * The decision an `<option>` takes about ` selected=""`, put after what `attributes()` appended to
+ * the option: the marker is planted as the option's last attribute, and the scoping class and the
+ * `style` of directives are added to the attributes after every one of them, while `option()` writes
+ * ` selected=""` after all of that. See `selected` in selection.ts.
+ */
+function lastSelected(text: string): string {
+	return text.replace(
+		/( data-seam-selected="%%s\d+%%")((?: class="[^"]*")?(?: style="[^"]*")?)(?=>)/g,
+		'$2$1',
+	);
+}
+
+/**
+ * A render under the dev server as the compile reads it. A `{@html}` hole's anchor is a hash of
+ * its marker, which is no value a request holds, so it goes, and the hole's own expression writes
+ * it (see `collectTag`). And what `push_element` writes into the head about a misplaced element is
+ * left out: the compile reports it where it renders, on the terminal, and the program does not
+ * write it. See spec/build.md, "The dev server compiles a route when it is asked for".
+ */
+function developed(rendered: Rendered): Rendered {
+	if (projectDevelopment() === null) return rendered;
+	return {
+		body: unanchored(rendered.body),
+		head: unanchored(rendered.head.replace(MISPLACED, '')),
+	};
+}
+
+/** Each `{@html}` hole's anchor taken out, where it is the development runtime's hash of the marker. */
+function unanchored(text: string): string {
+	return text.replace(/(<!--[0-9a-z]+-->)(%%s\d+%%)/g, (whole, anchor: string, marker: string) =>
+		anchor === anchorOf(marker) ? marker : whole,
+	);
 }
 
 // Staged inside this package, because Svelte's output imports 'svelte/internal/server' and that
@@ -213,9 +273,16 @@ function codegen(
 	filename: string,
 	root: string,
 ): string {
-	const key = JSON.stringify([source, name, filename, root]);
+	const development = projectDevelopment();
+	const key = JSON.stringify([source, name, filename, root, development]);
 	const held = compiled.get(key);
 	if (held !== undefined) return held;
+	// What `vite-plugin-svelte` compiles under the dev server where `hmr` and `emitCss` are both on: a
+	// rule after the stylesheet that scopes every element, so every element carries the class.
+	if (development?.hmr === true && development.emitCss) {
+		const close = source.lastIndexOf('</style>');
+		if (close > -1) source = `${source.slice(0, close)} *{}${source.slice(close)}`;
+	}
 	const code = timedSync('    codegen (svelte compile)', () => {
 		try {
 			const { js } = svelte.compile(source, {
@@ -311,6 +378,7 @@ export async function renderRewritten(
 			return own;
 		}
 		opened.set(from, '');
+		host.staged?.(origin);
 		if ([HEAD_OPEN, HEAD_CLOSE, MARK, MARK_HEAD].some((call) => code.includes(`${call}(`))) {
 			code = handed(code);
 		}
@@ -497,7 +565,7 @@ export async function renderRewritten(
 		const { body, head } = projectAsync()
 			? await held
 			: timedSync('    render call (svelte/server)', () => held);
-		return { body, head };
+		return developed({ body: lastSelected(body), head: lastSelected(head) });
 	} finally {
 		// The staged files stay: the next render is nearly all the same copies, and deleting them
 		// would only make it write and transform and evaluate them again. `forgetStaging()` is what

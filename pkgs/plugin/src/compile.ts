@@ -106,64 +106,17 @@ export async function compileRoutes({
 	const trees = await errorEntries(root);
 	const found = [...(await entries(root)), ...trees.found];
 	const out = resolve(outDir, ARTIFACTS);
-	// The render loads its staged copies through a Vite server made from the project's own
-	// config, so that what a component imports resolves as the project's build resolves it:
-	// `$lib`, `$app/*`, a virtual module of the project's plugins, `svelte` by condition.
-	// The build's mode and no HMR, since Svelte's `hmr` compile option changes the bytes. It
-	// is a loader and not a development server, so no plugin gets to set one up: what a
-	// project does in `configureServer` -- watchers, middleware, a content pipeline -- is for
-	// serving, and Kit's own is what answers requests, which nothing here sends. The config
-	// file is evaluated as the build it is part of, since a project's config may branch on
-	// the command and do its serving work under `serve`.
 	const vite = await projectVite(root);
-	const loaded = await vite.loadConfigFromFile(
-		{ command: 'build', mode, isSsrBuild: true },
-		configFile ?? undefined,
+	const {
+		loader,
+		loaded: config,
+		plugins,
+	} = await loaderOf(vite, {
 		root,
-	);
-	// This plugin is in the project's config too, and a build it started must not start it
-	// again: the carried bundles are built by Vite as well, and each would compile the routes.
-	const plugins: Plugin[] = [];
-	for (const one of await flattened(loaded?.config.plugins ?? [])) {
-		if (one.name.startsWith(NAME)) continue;
-		plugins.push({ ...one, configureServer: undefined, configurePreviewServer: undefined });
-	}
-	const loader = await vite.createServer({
-		...loaded?.config,
-		root,
-		configFile: false,
+		configFile,
+		outDir,
 		mode,
-		appType: 'custom',
-		logLevel: 'silent',
-		// A server made to load modules, standing where the production build stands: Kit's plugin
-		// defines `__SVELTEKIT_DEV__` from the command it sees, and this one is `serve`, so
-		// `$app/environment`'s `dev` came out true and a component branching on it baked the
-		// development branch. Said after Kit's own config hook, which is what `post` is for.
-		plugins: [
-			remoteStandIns(),
-			...plugins,
-			{
-				name: `${NAME}:built`,
-				enforce: 'post',
-				config: () => ({ define: { __SVELTEKIT_DEV__: 'false' } }),
-				// Kit aliases `<sveltekit:generated>` to `generated/dev` under `serve`, which only its
-				// dev server writes; the build this loader stands in has written `generated/build`,
-				// and Vite's alias plugin has already rewritten the import by the time a plugin sees
-				// it, so the rewritten path is what is redirected.
-				resolveId(source) {
-					const dev = `${resolve(outDir, 'generated/dev')}/`;
-					return source.startsWith(dev)
-						? `${resolve(outDir, 'generated/build')}/${source.slice(dev.length)}`
-						: null;
-				},
-			},
-		],
-		server: { middlewareMode: true, hmr: false, watch: null },
-		optimizeDeps: { noDiscovery: true },
-		// A cache of its own. The project's holds what `vite dev` optimized, Svelte under the
-		// development condition among it, and a loader that reused it rendered with Svelte's
-		// development runtime. See spec/publish.md, "Where a compile writes".
-		cacheDir: resolve(out, 'vite'),
+		command: 'build',
 	});
 	configureRender({
 		import: (url) => loader.ssrLoadModule(fileURLToPath(url)),
@@ -190,7 +143,7 @@ export async function compileRoutes({
 		mkdirSync(dirname(file), { recursive: true });
 		writeFileSync(file, source);
 		const result = await vite.build({
-			...loaded?.config,
+			...config?.config,
 			root,
 			configFile: false,
 			mode,
@@ -210,7 +163,7 @@ export async function compileRoutes({
 				...plugins.filter((one) => !one.name.startsWith('vite-plugin-sveltekit')),
 			],
 			resolve: {
-				...loaded?.config.resolve,
+				...config?.config.resolve,
 				alias: found_aliases.map(([find, replacement]) => ({ find, replacement })),
 			},
 			build: {
@@ -266,6 +219,91 @@ export async function compileRoutes({
 }
 
 /**
+ * The Vite server a compile renders its staged copies through, made from the project's own config,
+ * so that what a component imports resolves as the project resolves it: `$lib`, `$app/*`, a virtual
+ * module of the project's plugins, `svelte` by condition.
+ *
+ * Under the build, its mode and no HMR, since Svelte's `hmr` compile option changes the bytes. It
+ * is a loader and not a development server, so no plugin gets to set one up: what a project does
+ * in `configureServer` -- watchers, middleware, a content pipeline -- is for serving, and Kit's own
+ * is what answers requests, which nothing here sends. The config file is evaluated as the command
+ * it is part of, since a project's config may branch on the command and do its serving work under
+ * `serve`. Under the dev server it stands where that server stands -- its mode, `__SVELTEKIT_DEV__`
+ * as Kit sets it there -- apart from it only in answering a remote function with a stand-in, which
+ * a render cannot call Kit's for. See spec/build.md, "The dev server compiles a route when it is
+ * asked for".
+ */
+export async function loaderOf(
+	vite: typeof import('vite'),
+	{
+		root,
+		configFile,
+		outDir,
+		mode,
+		command,
+	}: {
+		root: string;
+		configFile: string | null;
+		outDir: string;
+		mode: string;
+		command: 'build' | 'serve';
+	},
+): Promise<{
+	loader: import('vite').ViteDevServer;
+	loaded: Awaited<ReturnType<typeof import('vite').loadConfigFromFile>>;
+	plugins: Plugin[];
+}> {
+	const out = resolve(outDir, ARTIFACTS);
+	const loaded = await vite.loadConfigFromFile(
+		command === 'build' ? { command, mode, isSsrBuild: true } : { command, mode },
+		configFile ?? undefined,
+		root,
+	);
+	// This plugin is in the project's config too, and a build it started must not start it
+	// again: the carried bundles are built by Vite as well, and each would compile the routes.
+	const plugins: Plugin[] = [];
+	for (const one of await flattened(loaded?.config.plugins ?? [])) {
+		if (one.name.startsWith(NAME)) continue;
+		plugins.push({ ...one, configureServer: undefined, configurePreviewServer: undefined });
+	}
+	// A server made to load modules, standing where the production build stands: Kit's plugin
+	// defines `__SVELTEKIT_DEV__` from the command it sees, and this one is `serve`, so
+	// `$app/environment`'s `dev` came out true and a component branching on it baked the
+	// development branch. Said after Kit's own config hook, which is what `post` is for.
+	const built: Plugin = {
+		name: `${NAME}:built`,
+		enforce: 'post',
+		config: () => ({ define: { __SVELTEKIT_DEV__: 'false' } }),
+		// Kit aliases `<sveltekit:generated>` to `generated/dev` under `serve`, which only its
+		// dev server writes; the build this loader stands in has written `generated/build`,
+		// and Vite's alias plugin has already rewritten the import by the time a plugin sees
+		// it, so the rewritten path is what is redirected.
+		resolveId(source) {
+			const dev = `${resolve(outDir, 'generated/dev')}/`;
+			return source.startsWith(dev)
+				? `${resolve(outDir, 'generated/build')}/${source.slice(dev.length)}`
+				: null;
+		},
+	};
+	const loader = await vite.createServer({
+		...loaded?.config,
+		root,
+		configFile: false,
+		mode,
+		appType: 'custom',
+		logLevel: 'silent',
+		plugins: [remoteStandIns(), ...plugins, ...(command === 'build' ? [built] : [])],
+		server: { middlewareMode: true, hmr: false, watch: null },
+		optimizeDeps: { noDiscovery: true },
+		// A cache of its own. The project's holds what `vite dev` optimized, Svelte under the
+		// development condition among it, and a loader that reused it rendered with Svelte's
+		// development runtime. See spec/publish.md, "Where a compile writes".
+		cacheDir: resolve(out, command === 'build' ? 'vite' : 'vite-dev'),
+	});
+	return { loader, loaded, plugins };
+}
+
+/**
  * The root of a route with each component whose module cannot be evaluated on the server standing
  * in as one that throws what it threw, as it renders; null where every module evaluates.
  *
@@ -278,7 +316,7 @@ export async function compileRoutes({
  * import throws before any render and this artifact is never asked for. See spec/framework.md, "A
  * module that cannot be evaluated on the server".
  */
-async function standingIn(
+export async function standingIn(
 	found: Found,
 	root: string,
 	load: (file: string) => Promise<unknown>,
@@ -326,7 +364,7 @@ async function flattened(given: unknown): Promise<Plugin[]> {
 }
 
 /** The project's own Vite, which is the one its config and plugins were written against. */
-async function projectVite(root: string): Promise<typeof import('vite')> {
+export async function projectVite(root: string): Promise<typeof import('vite')> {
 	const manifest = createRequire(resolve(root, 'package.json')).resolve('vite/package.json');
 	const { exports } = JSON.parse(readFileSync(manifest, 'utf8')) as {
 		exports: Record<string, { import?: string | { default?: string } } | string>;

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { bound as namesBound, reads } from '@seam-js/ast';
+import { bound as namesBound, projectDevelopment, reads } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import { type Walk } from './walk-types.ts';
@@ -28,7 +28,10 @@ export function throwsAtTop(file: string): { argument: string } | null {
 	}
 	const content = isNode(ast['instance']) ? ast['instance']['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
-	const statement = body.find((one) => isNode(one) && one['type'] === 'ThrowStatement');
+	const known = kitConstants(body);
+	const statement = body
+		.map((one) => (isNode(one) ? taken(one, known) : null))
+		.find((one) => isNode(one) && one['type'] === 'ThrowStatement');
 	if (!isNode(statement)) return null;
 	const argument = statement['argument'];
 	const at = span(argument);
@@ -56,6 +59,52 @@ export function throwsAtTop(file: string): { argument: string } | null {
 		);
 	}
 	return { argument: source.slice(at[0], at[1]) };
+}
+
+/**
+ * Kit's constants a script imports, by the local name, with the value the compile knows them to
+ * have: `dev` is whether the dev server is compiling, and `browser` is false on a server. See
+ * spec/build.md, "The dev server compiles a route when it is asked for".
+ */
+function kitConstants(body: readonly unknown[]): Map<string, boolean> {
+	const found = new Map<string, boolean>();
+	for (const one of body) {
+		if (!isNode(one) || one['type'] !== 'ImportDeclaration') continue;
+		const from = isNode(one['source']) ? one['source']['value'] : undefined;
+		if (from !== '$app/environment' && from !== '$app/env') continue;
+		for (const specifier of Array.isArray(one['specifiers']) ? one['specifiers'] : []) {
+			if (!isNode(specifier) || specifier['type'] !== 'ImportSpecifier') continue;
+			const imported = isNode(specifier['imported']) ? specifier['imported']['name'] : undefined;
+			const local = isNode(specifier['local']) ? specifier['local']['name'] : undefined;
+			if (typeof local !== 'string') continue;
+			if (imported === 'dev') found.set(local, projectDevelopment() !== null);
+			else if (imported === 'browser') found.set(local, false);
+		}
+	}
+	return found;
+}
+
+/**
+ * A top-level statement as it runs: an `if` whose test is one of those constants, or its negation,
+ * is the branch that test takes -- the statement itself where the branch is a single one, or the
+ * only statement of its block -- and any other statement is itself.
+ */
+function taken(statement: AstNode, known: ReadonlyMap<string, boolean>): unknown {
+	if (statement['type'] !== 'IfStatement') return statement;
+	let test = statement['test'];
+	let negated = false;
+	if (isNode(test) && test['type'] === 'UnaryExpression' && test['operator'] === '!') {
+		negated = true;
+		test = test['argument'];
+	}
+	const name = isNode(test) && test['type'] === 'Identifier' ? test['name'] : undefined;
+	const value = typeof name === 'string' ? known.get(name) : undefined;
+	if (value === undefined) return statement;
+	const branch = value !== negated ? statement['consequent'] : statement['alternate'];
+	if (!isNode(branch)) return null;
+	if (branch['type'] !== 'BlockStatement') return branch;
+	const inner = Array.isArray(branch['body']) ? branch['body'] : [];
+	return inner.length === 1 ? inner[0] : null;
 }
 
 /** What one top-level statement binds: an import's locals, a declaration's names. */

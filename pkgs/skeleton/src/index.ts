@@ -1,5 +1,7 @@
 import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { forgetDynamicSources } from './dynamic.ts';
+import { forgetDeclaredNames } from './hydratable.ts';
 export { expressionsOf, helpers } from './helpers.ts';
 export { skeleton, type Skeleton, type Hole, Undecided } from './skeleton.ts';
 export {
@@ -20,6 +22,16 @@ export {
 	type Host,
 	unavailable,
 } from './render.ts';
+
+/**
+ * What the walk remembers of a file by its path rather than by its content, forgotten: for the dev
+ * server, which compiles again after a file changes. See spec/build.md, "The dev server compiles a
+ * route when it is asked for".
+ */
+export function forgetSources(): void {
+	forgetDynamicSources();
+	forgetDeclaredNames();
+}
 
 /** What a compile spent where, printed by the compiler when `SEAM_TIME` is set. */
 export { forgetTimings, timed, timedSync, timings } from './timing.ts';

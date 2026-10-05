@@ -49,8 +49,11 @@ export {
 } from './scope.ts';
 export { componentOf, configureAliases, currentAliases, resolveBare } from './packages.ts';
 export {
+	configureDevelopment,
 	configureProjectOptions,
+	type Development,
 	projectAsync,
+	projectDevelopment,
 	projectOptions,
 	projectRunes,
 	type ProjectOptions,

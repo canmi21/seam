@@ -20,6 +20,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { builtWith, configured, READING } from '@seam-js/routes';
+import { moduleScripts, running } from '@seam-js/carry';
+import { develop } from './dev.ts';
 import {
 	ARTIFACTS,
 	ASSETS,
@@ -98,6 +100,10 @@ export interface Options {
 export function seam(options: Options = {}): Plugin {
 	let root = '';
 	let active = false;
+	/** Whether this is Vite's dev server, which compiles a route when it is asked for. See `develop`. */
+	let serving = false;
+	const scriptRun = running({ bare: true });
+	const scripts = moduleScripts();
 	let config: ResolvedConfig | undefined;
 	/** Kit's `outDir`, where the artifacts are written. */
 	let outDir = '';
@@ -125,6 +131,12 @@ export function seam(options: Options = {}): Plugin {
 			// shared with it, so the config resolves once and each hook below asks which environment
 			// it is in: the server's, and only that, is where the root is rendered.
 			active = resolved.command === 'build' && resolved.environments['ssr'] !== undefined;
+			serving = resolved.command === 'serve' && resolved.environments['ssr'] !== undefined;
+		},
+
+		// Ahead of Kit's own middleware, which `configureServer` returning nothing is. See `develop`.
+		configureServer(server) {
+			if (serving) develop(server, options);
 		},
 
 		// Compiled when the build starts and not when the config resolves: Kit resolves it for `build`
@@ -177,16 +189,40 @@ export function seam(options: Options = {}): Plugin {
 
 		// Only the import `render.js` makes: the dispatcher imports the same file for the renders it
 		// hands back to Kit, and that import is left to Svelte's plugin.
-		resolveId(source, importer) {
-			if (!active || this.environment.name !== 'ssr' || importer === undefined) return null;
+		async resolveId(source, importer, resolveOptions) {
+			if (!(active || serving) || this.environment.name !== 'ssr') return null;
+			// What the carried module imports under the dev server, which no bundle answers there: a
+			// component's script run, and its module script. See `carriedSource` in the carry package.
+			if (serving) {
+				for (const one of [scriptRun, scripts]) {
+					const hook = one.resolveId as
+						| ((this: unknown, ...args: unknown[]) => Promise<string | null> | string | null)
+						| undefined;
+					const found = await hook?.call(this, source, importer, resolveOptions);
+					if (found !== null && found !== undefined) return found;
+				}
+			}
+			if (importer === undefined) return null;
 			const at = resolve(dirname(importer), source).split('\\').join('/');
 			if (!at.endsWith(KIT_ROOT) || !importer.split('\\').join('/').endsWith(RENDER)) return null;
 			kitRoot = at;
 			return ROOT;
 		},
 
-		load(id) {
-			if (id !== ROOT || this.environment.name !== 'ssr') return null;
+		async load(id) {
+			if (this.environment.name !== 'ssr') return null;
+			if (serving && id !== ROOT) {
+				for (const one of [scriptRun, scripts]) {
+					const hook = one.load as
+						| ((this: unknown, id: string) => Promise<string | null> | string | null)
+						| undefined;
+					const found = await hook?.call(this, id);
+					if (found !== null && found !== undefined) return found;
+				}
+				return null;
+			}
+			if (id !== ROOT) return null;
+			if (serving) return devDispatcher(kitRoot, process.env[KIT_ROOT_CHECK] === 'throw');
 			return dispatcher(
 				kitRoot,
 				emitted,
@@ -313,17 +349,7 @@ function dispatcher(
 		.map(([, path], i) => `import loaded_${String(i)} from ${JSON.stringify(path)};\n`)
 		.join('');
 	const loadedMap = `new Map([${loaded.map(([key], i) => `[loaded_${String(i)}, ${JSON.stringify(key)}]`).join(', ')}])`;
-	// Kit's own root, or under the check, a throw naming what would have reached it.
-	const toKit = refuseKitRoot
-		? `{
-		const message = \`seam: Kit's root rendered under ${KIT_ROOT_CHECK}=throw: route \${props.page?.route?.id ?? '(none)'}, status \${String(props.page?.status)}, \${failed ? 'an error page' : 'no artifact'}\`;
-		console.error(message);
-		throw new Error(message);
-	}`
-		: `{
-		KitRoot($$renderer, props);
-		return;
-	}`;
+	const toKit = toKitSource(refuseKitRoot);
 	const handedAssets = [
 		...assets.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`),
 		...remotes.map(([key], i) => `, ${JSON.stringify(key)}: remote_${String(i)}`),
@@ -351,13 +377,7 @@ const files = { ${files} };
 // The error tree a failed render is, by its route and how many levels Kit handed. See
 // \`Routes.failing\` in @seam-js/routes.
 const failing = ${JSON.stringify(failing)};
-function treeOf(props) {
-	let levels = 0;
-	for (let node = props.tree; node !== undefined && node !== null; node = node.child) levels += 1;
-	// \`respond_with_error\`'s two levels guard nothing; a failed load's second always has its page.
-	const responding = levels === 2 && props.tree.child.error === undefined;
-	return failing[responding ? '' : \`\${props.page?.route?.id}\\n\${String(levels)}\`];
-}
+const failingNow = () => failing;
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 
@@ -370,6 +390,69 @@ function programOf(entry) {
 		programs.set(entry.id, held);
 	}
 	return held;
+}
+
+${rootSource(`const entry = manifest.routes[key];
+	if (entry === undefined) ${toKit}
+	const render = programOf(entry);`)}`;
+}
+
+/** Kit's own root, or under the check, a throw naming what would have reached it. */
+function toKitSource(refuseKitRoot: boolean): string {
+	return refuseKitRoot
+		? `{
+		const message = \`seam: Kit's root rendered under ${KIT_ROOT_CHECK}=throw: route \${props.page?.route?.id ?? '(none)'}, status \${String(props.page?.status)}, \${failed ? 'an error page' : 'no artifact'}\`;
+		console.error(message);
+		throw new Error(message);
+	}`
+		: `{
+		KitRoot($$renderer, props);
+		return;
+	}`;
+}
+
+/**
+ * The dispatcher under the dev server: the same root, reading the programs the dev server compiled
+ * off the framework's global, where `develop` keeps them, rather than artifacts beside it. What a
+ * build hands the carried bundle is not handed here, since the carried module is loaded by the
+ * server's own runner and imports Kit's modules as Kit's code does; `import.meta.env` still is,
+ * which a derivation reads as `$$env()`. A route the request asked for that has no program -- one
+ * rendered without the request reaching the dev server's middleware, which Kit's own `fetch` of a
+ * page does -- is rendered by Kit's root, and said once. See spec/build.md, "The dev server
+ * compiles a route when it is asked for".
+ */
+function devDispatcher(kitRootComponent: string, refuseKitRoot: boolean): string {
+	const toKit = toKitSource(refuseKitRoot);
+	return `
+import KitRoot from ${JSON.stringify(kitRootComponent)};
+
+(globalThis[Symbol.for('seam.kit')] ??= {})['import.meta.env'] = import.meta.env;
+const programs = () => globalThis[Symbol.for('seam.dev')];
+const failingNow = () => programs().failing;
+const said = new Set();
+
+${rootSource(`const render = key === undefined ? undefined : programs().render(key);
+	if (render === undefined) {
+		if (key !== undefined && programs().left(key) === undefined) programs().missed(key);
+		if (key !== undefined && programs().left(key) === undefined && !said.has(key)) {
+			said.add(key);
+			console.warn(\`seam: no program was compiled for \${key} before Kit rendered it, so Kit's root renders it, and it is compiled for the next request\`);
+		}
+		${toKit}
+	}`)}`;
+}
+
+/**
+ * The root a dispatcher exports, which renders a request from its program: `lookup` declares
+ * `render` from `key`, the route's id or its error tree's, or hands the request to Kit's root.
+ */
+function rootSource(lookup: string): string {
+	return `function treeOf(props) {
+	let levels = 0;
+	for (let node = props.tree; node !== undefined && node !== null; node = node.child) levels += 1;
+	// \`respond_with_error\`'s two levels guard nothing; a failed load's second always has its page.
+	const responding = levels === 2 && props.tree.child.error === undefined;
+	return failingNow()[responding ? '' : \`\${props.page?.route?.id}\\n\${String(levels)}\`];
 }
 
 // What a derivation threw, as the author threw it: \`derive\` wraps a throw in a \`DerivationFailed\`
@@ -390,9 +473,8 @@ export default function Root($$renderer, props) {
 	// error page in its place -- a load that threw, a route nothing matched -- which is one of the
 	// error trees, compiled as a page is.
 	const failed = props.error !== undefined || props.page?.error != null;
-	const entry = manifest.routes[failed ? treeOf(props) : props.page?.route?.id];
-	if (entry === undefined) ${toKit}
-	const render = programOf(entry);
+	const key = failed ? treeOf(props) : props.page?.route?.id;
+	${lookup}
 	// The generated root's props: Kit's tree, a level per node, its data already the merge of the
 	// levels above it as \`render_response\` builds it.
 	const payload = { page: props.page, form: props.form, error: props.error };
@@ -417,7 +499,7 @@ export default function Root($$renderer, props) {
 	const write = (renderer, { body, head, hashes, bare }) => {
 		if (bare !== true) {
 			if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
-				throw new Error(\`the artifact for \${entry.id} is not a root's bytes\`);
+				throw new Error(\`the program for \${key} did not write a root's bytes\`);
 			}
 			body = body.slice(OPEN.length, body.length - CLOSE.length);
 		}

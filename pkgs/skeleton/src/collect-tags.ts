@@ -4,7 +4,7 @@
  * spec/pipeline.md.
  */
 import { basename } from 'node:path';
-import { constant, type Locals, mentions } from '@seam-js/ast';
+import { constant, type Locals, mentions, projectDevelopment } from '@seam-js/ast';
 import { clsxed } from './attributes.ts';
 import { called, isNode, refuse, renders, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
@@ -103,7 +103,15 @@ export function collectTag(node: AstNode, type: string, walk: Walk): void {
 	// Where the value lands, and therefore how it is escaped, is read off the render rather
 	// than guessed here. A prop passed to a component may end up in text or in an attribute,
 	// and only the component knows which.
-	holes.push({ index, expression: written, raw: type === 'HtmlTag' });
+	// Under the dev server a `{@html}` block opens with a hash of its value, which the render cannot
+	// show of a marker: the hole writes the anchor with the value, and the render's is taken out.
+	// See `developed` in render.ts.
+	const html = type === 'HtmlTag';
+	holes.push({
+		index,
+		expression: html && projectDevelopment() !== null ? `$$html(${written})` : written,
+		raw: html,
+	});
 	edits.push([at[0], at[1], shielded(JSON.stringify(sentinel(index)))]);
 	return;
 }

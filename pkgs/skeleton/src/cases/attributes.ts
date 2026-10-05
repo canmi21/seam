@@ -176,6 +176,17 @@ export const cases: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// An option the stylesheet scopes: `attributes()` appends the scoping class after every
+		// attribute the option has, and `option()` writes ` selected=""` after that, so the decision
+		// planted as the option's last attribute has to land after the class. Under the dev server
+		// every element is scoped, which is where Kit's `async` `remote/form/as-value` met it.
+		name: 'a selected option the stylesheet scopes',
+		source:
+			`${PROPS}<select value={data.v}><option value="a">A</option><option value="b" class="x">B</option></select>` +
+			'<style>option { color: red; }</style>',
+		data: [{ v: 'a' }, { v: 'b' }],
+	},
+	{
 		// `renderer.option` compares against the rendered body and takes the attributes' `value` over
 		// it where they have one: `if (has_own_property.call(attrs, 'value')) value = attrs.value`. A
 		// spread carries the key exactly as a written attribute does.

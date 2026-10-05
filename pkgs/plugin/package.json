@@ -25,6 +25,7 @@
 		"access": "public"
 	},
 	"dependencies": {
+		"@seam-js/ast": "workspace:*",
 		"@seam-js/carry": "workspace:*",
 		"@seam-js/compiler": "workspace:*",
 		"@seam-js/program": "workspace:*",

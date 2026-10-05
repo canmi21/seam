@@ -40,7 +40,30 @@ export function projectRunes(filename: string): boolean | undefined {
 	return typeof given === 'function' ? given({ filename }) : given;
 }
 
+/**
+ * How the dev server compiles, where a compile is for it: Svelte's `dev`, and `hmr` as
+ * `vite-plugin-svelte` decides it, with `emitCss` beside it because the two together change the
+ * source it compiles. Kept apart from the project's options, which every route's compile sets
+ * again, since it is a fact about the server rather than about the project. Null for a build. See
+ * spec/build.md, "The dev server compiles a route when it is asked for".
+ */
+export interface Development {
+	hmr: boolean;
+	emitCss: boolean;
+}
+
+let development: Development | null = null;
+
+export function configureDevelopment(given: Development | null): void {
+	development = given;
+}
+
+/** The dev server's compile options, or null where the compile is a build's. */
+export function projectDevelopment(): Development | null {
+	return development;
+}
+
 /** What is configured, to be spread into a compile's options. */
-export function projectOptions(): ProjectOptions {
-	return options;
+export function projectOptions(): ProjectOptions & { dev?: true; hmr?: boolean } {
+	return development === null ? options : { ...options, dev: true, hmr: development.hmr };
 }

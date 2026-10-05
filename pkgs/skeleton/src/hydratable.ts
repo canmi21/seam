@@ -14,6 +14,11 @@ import type { Block, Rendered } from './shape.ts';
 /** Every name a component's scripts declare or import at their top level, by file, once. */
 const declaredNames = new Map<string, ReadonlySet<string>>();
 
+/** What the map above holds, forgotten once a file may have changed. See `forgetSources`. */
+export function forgetDeclaredNames(): void {
+	declaredNames.clear();
+}
+
 export function declaredIn(file: string): ReadonlySet<string> {
 	const held = declaredNames.get(file);
 	if (held !== undefined) return held;
