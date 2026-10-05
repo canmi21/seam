@@ -164,6 +164,18 @@ export const files: Record<string, string> = {
 		'<script>export let data;</script><svelte:component this={data.Thing} />',
 	'src/routes/loaded/_/Thing.svelte':
 		'<p id="thing">this text is red</p><style>p { color: red; }</style>',
+	// A component its author declared SSR, rendered by Svelte per request in the program's bytes,
+	// its props computed from the page's data. See spec/together.md.
+	'src/lib/twice.svelte':
+		'<script module>export const seam = \'ssr\';</script><script>let { n } = $props();</script><p class="twice">{n * 2}</p><style>.twice { color: blue; }</style>',
+	'src/routes/clocked/+page.server.js': 'export function load() { return { n: 21 }; }',
+	'src/routes/clocked/+page.svelte':
+		"<script>import Twice from '#lib/twice.svelte'; let { data } = $props();</script><h2>clocked</h2><Twice n={data.n} /><p>after</p>",
+	// Literal markup in the shape of the compile's own marker, which it cannot tell from one: refused,
+	// and rendered by SSR rather than failing the build. See spec/together.md.
+	'src/routes/marker/+page.server.js': "export function load() { return { x: 'value' }; }",
+	'src/routes/marker/+page.svelte':
+		'<script>let { data } = $props();</script><p>%%s0%% here</p><p>{data.x}</p>',
 	'src/routes/store/+page.svelte':
 		"<script>import { mode, bump } from './state.js'; function go() { mode.set('x'); bump(); }</script><button onclick={go}>go</button><p>mode: {$mode}</p>",
 };
@@ -192,6 +204,8 @@ export const URLS = [
 	'/derived',
 	'/loaded',
 	'/loaded?none',
+	'/marker',
+	'/clocked',
 ];
 /**
  * A package of the shape `@lucide/svelte` has, written outside the project and linked into its

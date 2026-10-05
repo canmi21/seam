@@ -224,7 +224,7 @@ export function seam(options: Options = {}): Plugin {
 			if (id !== ROOT) return null;
 			if (serving) {
 				const async = (await compilerOptions(root)).experimental?.async === true;
-				return devDispatcher(kitRoot, process.env[KIT_ROOT_CHECK] === 'throw', async);
+				return devDispatcher(kitRoot, async);
 			}
 			return dispatcher(
 				kitRoot,
@@ -396,6 +396,11 @@ function programOf(entry) {
 }
 
 ${rootSource(`const entry = manifest.routes[key];
+	// A route the build degraded to SSR is Kit's root's by decision, and the check does not refuse it.
+	if (entry === undefined && key !== undefined && manifest.ssr?.[key] !== undefined) {
+		KitRoot($$renderer, props);
+		return;
+	}
 	if (entry === undefined) ${toKit}
 	const render = programOf(entry);`)}`;
 }
@@ -415,17 +420,15 @@ function toKitSource(refuseKitRoot: boolean): string {
 }
 
 /**
- * The dispatcher under the dev server: the same root, reading the programs the dev server compiled
- * off the framework's global, where `develop` keeps them, rather than artifacts beside it. What a
- * build hands the carried bundle is not handed here, since the carried module is loaded by the
- * server's own runner and imports Kit's modules as Kit's code does; `import.meta.env` still is,
- * which a derivation reads as `$$env()`. A route the request asked for that has no program -- one
- * rendered without the request reaching the dev server's middleware, which Kit's own `fetch` of a
- * page does -- is rendered by Kit's root, and said once. See spec/build.md, "How the dev server compiles a route".
+ * The dispatcher under the dev server: Kit's own root answers, and behind the response the same
+ * props go to the check, with Kit's root rendered again alone to a string to hold the program to.
+ * Both renders the check compares are given one answer to every error, so that a component's own
+ * \`handleError\` runs once a request, in the render that answers. See spec/build.md, "The dev server
+ * answers with Kit's render, and CTR is checked behind it".
  */
-function devDispatcher(kitRootComponent: string, refuseKitRoot: boolean, async: boolean): string {
-	const toKit = toKitSource(refuseKitRoot);
+function devDispatcher(kitRootComponent: string, async: boolean): string {
 	return `
+const ASYNC = ${String(async)};
 import KitRoot from ${JSON.stringify(kitRootComponent)};
 import { render as renderAlone } from 'svelte/server';
 import { getAllContexts } from 'svelte';
@@ -436,21 +439,145 @@ const MISPLACED = new RegExp(${JSON.stringify(MISPLACED.source)}, 'g');
 
 (globalThis[Symbol.for('seam.kit')] ??= {})['import.meta.env'] = import.meta.env;
 const programs = () => globalThis[Symbol.for('seam.dev')];
-const failingNow = () => programs().failing;
-const said = new Set();
+const failingNow = () => programs()?.failing ?? {};
+const OPEN = '<!--[-->';
+const CLOSE = '<!--]-->';
+const scripts = (hashes) => (Array.isArray(hashes?.script) ? hashes.script : []);
 
-${rootSource(
-	`const render = key === undefined ? undefined : programs().render(key);
-	if (render === undefined) {
-		if (key !== undefined && programs().left(key) === undefined) programs().missed(key);
-		if (key !== undefined && programs().left(key) === undefined && !said.has(key)) {
-			said.add(key);
-			console.warn(\`seam: no program was compiled for \${key} before Kit rendered it, so Kit's root renders it, and it is compiled for the next request\`);
-		}
-		${toKit}
-	}`,
-	refereed(async),
-)}`;
+function treeOf(props) {
+	let levels = 0;
+	for (let node = props.tree; node !== undefined && node !== null; node = node.child) levels += 1;
+	// \`respond_with_error\`'s two levels guard nothing; a failed load's second always has its page.
+	const responding = levels === 2 && props.tree.child.error === undefined;
+	return failingNow()[responding ? '' : \`\${props.page?.route?.id}\\n\${String(levels)}\`];
+}
+
+// A copy of the props a render is given, its page its own: a render writes what a boundary caught
+// into the page, and each render of the check has to start from the page as it came.
+const snapshot = (props) => ({ ...props, page: props.page === undefined ? undefined : { ...props.page } });
+
+// The request's context with its \`page\` the one this render was given.
+const withPage = (contexts, page) => {
+	const context = new Map(contexts);
+	const request = context.get('__request__');
+	context.set('__request__', { ...(request ?? {}), page });
+	return context;
+};
+
+// What Kit's \`transformError\` does to the page, without the project's \`handleError\`: a component's
+// own hook runs once a request, in the render that answers. A redirect is thrown on, as Kit throws it.
+const handled = (page) => (error) => {
+	if (error !== null && typeof error === 'object' && typeof error.location === 'string') throw error;
+	const status = typeof error?.status === 'number' ? error.status : 500;
+	const body = error?.body ?? { message: 'Internal Error' };
+	if (page !== undefined) {
+		page.error = body;
+		page.status = status;
+	}
+	return body;
+};
+
+// The generated root's props, as the build's dispatcher hands them to the program.
+function payloadOf(props) {
+	const payload = { page: props.page, form: props.form, error: props.error };
+	let level = 0;
+	for (let node = props.tree; node !== undefined && node !== null; node = node.child) {
+		payload[\`data_\${level}\`] = node.data;
+		level += 1;
+	}
+	return payload;
+}
+
+// One render alone, to what it wrote or what it threw, awaited where Svelte's async mode needs it.
+async function alone(component, options) {
+	try {
+		let done = renderAlone(component, options);
+		if (typeof done?.then === 'function') done = await done;
+		return { body: done.body, head: done.head.replace(MISPLACED, ''), hashes: scripts(done.hashes) };
+	} catch (error) {
+		return { threw: String(error?.stack ?? error) };
+	}
+}
+
+// The same, read as it returns, outside Svelte's async mode.
+function aloneNow(component, options) {
+	try {
+		const done = renderAlone(component, options);
+		return { body: done.body, head: done.head.replace(MISPLACED, ''), hashes: scripts(done.hashes) };
+	} catch (error) {
+		return { threw: String(error?.stack ?? error) };
+	}
+}
+
+// The program run inside a render of Svelte's, as the build's dispatcher runs it inside Kit's: a
+// \`$derived\` a page's class declares is computed once inside a render and on every read outside one.
+const inside = (program, payload, csp, transformError, out) => ($$renderer) => {
+	const done = program(payload, { transformError }, { csp, bare: true });
+	if (typeof done?.then === 'function') {
+		$$renderer.child(async () => {
+			out.value = await done;
+		});
+	} else {
+		out.value = done;
+	}
+};
+
+export default function Root($$renderer, props) {
+	const dev = programs();
+	if (dev === undefined || !dev.checking) {
+		KitRoot($$renderer, props);
+		return;
+	}
+	// Read before Kit's render, which writes what a boundary caught into the page it was handed:
+	// the check renders from the props as they came, and under the key they came under.
+	const given = snapshot(props);
+	const contexts = getAllContexts();
+	KitRoot($$renderer, props);
+	const failed = given.error !== undefined || given.page?.error != null;
+	const key = failed ? treeOf(given) : given.page?.route?.id;
+	if (key === undefined) return;
+	dev.keep(key, payloadOf(snapshot(given)));
+	// Held to Kit's inside this render, where what Kit sets for a render -- the request, a relative
+	// \`base\` -- is set, as the build's dispatcher runs the program; where no program is ready yet,
+	// one is compiled behind the response and the next render is checked.
+	const program = dev.ready(key);
+	if (program === undefined) return;
+	const { csp } = $$renderer.global;
+	const policy = csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce };
+	const kitProps = snapshot(given);
+	const kitOptions = {
+		props: kitProps,
+		context: withPage(contexts, kitProps.page),
+		csp: policy,
+		transformError: handled(kitProps.page),
+	};
+	const ourProps = snapshot(given);
+	const payload = payloadOf(ourProps);
+	const out = {};
+	const ourOptions = { context: withPage(contexts, ourProps.page), csp: policy };
+	const runner = inside(program, payload, policy, handled(ourProps.page), out);
+	const settle = (ran, kit) => {
+		const ours =
+			ran.threw !== undefined
+				? ran
+				: {
+						body: out.value.bare === true ? OPEN + out.value.body + CLOSE : out.value.body,
+						head: out.value.head,
+						hashes: scripts(out.value.hashes),
+					};
+		dev.compared(key, ours, kit, payload);
+	};
+	if (ASYNC) {
+		$$renderer.child(async () => {
+			const kit = await alone(KitRoot, kitOptions);
+			settle(await alone(runner, ourOptions), kit);
+		});
+	} else {
+		const kit = aloneNow(KitRoot, kitOptions);
+		settle(aloneNow(runner, ourOptions), kit);
+	}
+}
+`;
 }
 
 /** What Svelte's development runtime writes into the head about a misplaced element, once. */
@@ -496,104 +623,6 @@ const ANSWERING = `let injected;
 	} else {
 		write($$renderer, injected);
 	}`;
-
-/**
- * How the dev server's root answers: the program's bytes held to Kit's root, rendered alone with the
- * same props, context, policy and \`transformError\`, and Kit's where the two disagree. In Svelte's
- * async mode both are awaited, which only that mode allows. See spec/build.md, "How it keeps itself
- * right".
- */
-function refereed(async: boolean): string {
-	return `const options = {
-		csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
-		bare: true,
-	};
-	${WRITE}
-	const tried = (make) => {
-		try {
-			return { value: make() };
-		} catch (error) {
-			return { error };
-		}
-	};
-	const settled = async (one) => {
-		if (one.error !== undefined) return one;
-		try {
-			return { value: await one.value };
-		} catch (error) {
-			return { error };
-		}
-	};
-	const ours = tried(() => render(payload, { transformError }, options));
-	if (!programs().checking) {
-		if (ours.error !== undefined) throw original(ours.error);
-		if (typeof ours.value.then === 'function') {
-			$$renderer.child(async (inner) => {
-				const done = await settled(ours);
-				if (done.error !== undefined) throw original(done.error);
-				write(inner, done.value);
-			});
-		} else {
-			write($$renderer, ours.value);
-		}
-		return;
-	}
-	const theirs = tried(() =>
-		renderAlone(KitRoot, { props, context: new Map(getAllContexts()), csp: options.csp, transformError }),
-	);
-	// What a policy has to allow, as a list: Svelte's render gives an empty string where there is none.
-	const scripts = (hashes) => (Array.isArray(hashes?.script) ? hashes.script : []);
-	const judge = (renderer, o, t) => {
-		if (o.error === undefined && programs().fault === key) {
-			o = { value: { ...o.value, body: \`\${o.value.body}<!--seam-fault-->\` } };
-		}
-		if (o.error !== undefined && t.error !== undefined) throw original(o.error);
-		const mine = o.error === undefined
-			? {
-					body: o.value.bare === true ? OPEN + o.value.body + CLOSE : o.value.body,
-					head: o.value.head,
-					hashes: scripts(o.value.hashes),
-				}
-			: { threw: String(original(o.error)?.stack ?? o.error) };
-		const kits = t.error === undefined
-			? {
-					body: t.value.body,
-					head: t.value.head.replace(MISPLACED, ''),
-					hashes: scripts(t.value.hashes),
-				}
-			: { threw: String(t.error?.stack ?? t.error) };
-		if (
-			mine.threw === undefined &&
-			kits.threw === undefined &&
-			mine.body === kits.body &&
-			mine.head === kits.head &&
-			JSON.stringify(mine.hashes) === JSON.stringify(kits.hashes)
-		) {
-			programs().agreed(key);
-			write(renderer, o.value);
-			return;
-		}
-		programs().disagreed(key, { ours: mine, kit: kits });
-		if (t.error !== undefined) throw t.error;
-		write(renderer, t.value);
-	};
-	${
-		async
-			? `$$renderer.child(async (inner) => {
-		// Both at once: Svelte's render starts its async work when it is awaited, and one after the
-		// other a page took twice as long, long enough for a query it left loading to settle first.
-		const [o, t] = await Promise.all([settled(ours), settled(theirs)]);
-		judge(inner, o, t);
-	});`
-			: `judge(
-		$$renderer,
-		ours,
-		theirs.error !== undefined
-			? theirs
-			: tried(() => ({ body: theirs.value.body, head: theirs.value.head, hashes: theirs.value.hashes })),
-	);`
-	}`;
-}
 
 /**
  * The root a dispatcher exports, which renders a request from its program: `lookup` declares

@@ -1,12 +1,10 @@
 // The sample project under Vite's dev server, as Kit serves it and as the fork does, every page
-// asked of both: the responses have to be the same bytes but for what two servers' files and ports
-// are, and the one difference the dev server declares. Then the project is edited under both, and
-// the fork's answers follow the edit. See spec/build.md, "How the dev server compiles a route".
-//
-// The fork's server refuses Kit's own root, so every answer that matches Kit's was rendered from a
-// program the dev server compiled.
-import { spawn, type ChildProcess } from 'node:child_process';
-import { openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// asked of both: the fork answers with Kit's render, so the responses are the same bytes but for what
+// two servers' files and ports are, and behind each the fork's check holds the program it compiled to
+// what Kit wrote. Then the project is edited under both. See spec/build.md, "The dev server answers
+// with Kit's render, and CTR is checked behind it".
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,6 +56,9 @@ const devFiles: Record<string, string> = {
 	'src/routes/shelf/+page.svelte': '<p>shelf</p>',
 	// A route whose id escapes a `%`, which Kit matches with `%25` left encoded.
 	'src/routes/percent/[x+25]/+page.svelte': '<p>percent</p>',
+	// `$app/manifest`, which Kit's dev server fills and the compile's own Vite must not empty.
+	'src/routes/listed/+page.svelte':
+		"<script>import { routes } from '$app/manifest';</script><p>{routes.length} routes</p>",
 	// A misplaced element, which Svelte's `dev` writes a script into the head about, once.
 	'src/routes/misplaced/Block.svelte': '<div>block</div>',
 	'src/routes/misplaced/+page.svelte':
@@ -151,6 +152,32 @@ async function until(url: string, text: string): Promise<string> {
 	throw new Error(`${url} never held ${text}: ${last.slice(0, 400)}`);
 }
 
+/** The fork's check log, once its checks have all ended: the last line it wrote is `idle`. */
+async function quiet(): Promise<string> {
+	const at = resolve(forkDir, '.svelte-kit/seam/dev.log');
+	const read = (): string => {
+		try {
+			return readFileSync(at, 'utf8');
+		} catch {
+			return '';
+		}
+	};
+	for (let i = 0; i < 600; i += 1) {
+		const before = read();
+		if (before.trimEnd().endsWith(' idle')) {
+			await new Promise((done) => setTimeout(done, 500));
+			if (read() === before) return before;
+		}
+		await new Promise((done) => setTimeout(done, 100));
+	}
+	return read();
+}
+
+/** Waits until `ready` holds, a tenth of a second at a time, for at most thirty seconds. */
+async function eventually(ready: () => boolean): Promise<void> {
+	for (let i = 0; i < 300 && !ready(); i += 1) await new Promise((done) => setTimeout(done, 100));
+}
+
 /** How many times the fork's server said it compiled `path`. */
 function compiled(path: string): number {
 	const log = readFileSync(resolve(forkDir, 'dev.log'), 'utf8');
@@ -160,6 +187,7 @@ function compiled(path: string): number {
 const servers: ChildProcess[] = [];
 const kitAnswers: Record<string, string> = {};
 const forkAnswers: Record<string, string> = {};
+let checks = '';
 
 beforeAll(async () => {
 	for (const [project, mode] of [
@@ -176,6 +204,10 @@ beforeAll(async () => {
 		kitAnswers[url] = await kit(url);
 		forkAnswers[url] = await fork(url);
 	}
+	// Each route was compiled behind its first render; the second is the one held to Kit's.
+	await quiet();
+	for (const url of DEV_URLS) await fork(url);
+	checks = await quiet();
 }, 300_000);
 afterAll(() => {
 	for (const one of servers) one.kill();
@@ -193,42 +225,59 @@ describe("the dev server answers as Kit's does", () => {
 		expect(forkAnswers['/misplaced']).not.toContain('node_invalid_placement_ssr');
 	});
 
+	it("left `$app/manifest` as Kit's dev server wrote it, once the compile's own Vite was made", async () => {
+		const ours = await fork('/listed');
+		expect(ours).toBe(await kit('/listed'));
+		expect(ours).not.toContain('<p>0 routes</p>');
+		// Left alone rather than put back: a write is a full reload of the server.
+		expect(readFileSync(resolve(forkDir, 'dev.log'), 'utf8')).not.toContain('app-manifest.js');
+	});
+
 	it('compiled the route the reroute hook named', () => {
 		expect(compiled('/box')).toBeGreaterThan(0);
 	});
 
 	it("held every render to Kit's, and none disagreed", () => {
-		const log = readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8');
-		expect(log).toContain('compiled /box');
-		expect(log).not.toContain('disagreed');
+		for (const key of [
+			'/',
+			'/box',
+			'/html',
+			'/option',
+			'/derived-class',
+			'/kit-error/[ok]',
+			'/shelf',
+		]) {
+			expect(checks).toContain(`held ${key}\n`);
+		}
+		expect(checks).not.toContain('disagreed');
+		expect(checks).not.toContain('fault');
+		// What the build renders by SSR, said while developing: the page it refuses, and the
+		// component its author declared.
+		expect(checks).toContain('ssr /marker');
+		expect(checks).toContain('ssr /clocked: src/lib/twice.svelte renders by SSR');
 	});
 });
 
 describe('a program that writes the wrong bytes', () => {
-	it("is answered with Kit's bytes, and the ladder climbs to the end", async () => {
+	it("is answered with Kit's bytes, compiled again, and then started over", async () => {
 		const port = 4813;
 		const child = serve(forkDir, 'fork', port, { SEAM_DEV_FAULT: '/box' }, 'fault.log');
-		const exited = new Promise<number | null>((done) => child.once('exit', (code) => done(code)));
 		await answered(port);
 		const expected = await kit('/box');
 		const answers: string[] = [];
-		let code: number | null | undefined;
-		for (let i = 0; i < 60 && code === undefined; i += 1) {
-			try {
-				answers.push(await ask(port, '/box', forkDir, FORK));
-			} catch {
-				// Restarting, or gone.
-			}
-			code = await Promise.race([exited, new Promise<undefined>((done) => setTimeout(done, 300))]);
+		for (let i = 0; i < 8; i += 1) {
+			answers.push(await ask(port, '/box', forkDir, FORK));
+			await new Promise((done) => setTimeout(done, 1000));
 		}
-		expect(code).toBe(1);
-		expect(answers.length).toBeGreaterThan(3);
+		const alive = child.exitCode === null;
+		child.kill();
 		for (const one of answers) expect(one).toBe(expected);
+		expect(alive).toBe(true);
 		const log = readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8');
-		for (const rung of [2, 3, 4]) expect(log).toContain(`fault, rung ${String(rung)}`);
+		expect(log).toMatch(/disagreed \d+ \/box/);
+		expect(log).toContain('fault: the program for /box still disagrees');
 		const said = readFileSync(resolve(forkDir, 'fault.log'), 'utf8');
 		expect(said).toContain(`The log is ${resolve(forkDir, '.svelte-kit/seam/dev.log')}`);
-		expect(said).toContain('seam: this session answered');
 	}, 120_000);
 });
 
@@ -241,6 +290,7 @@ describe('the dev server follows an edit', () => {
 		);
 		const after = await until('/', 'edited');
 		expect(after).toBe(await kit('/'));
+		await eventually(() => compiled('/') > before);
 		expect(compiled('/')).toBeGreaterThan(before);
 	}, 60_000);
 
@@ -252,16 +302,86 @@ describe('the dev server follows an edit', () => {
 		);
 		const after = await until('/', 'Home again');
 		expect(after).toBe(await kit('/'));
+		await quiet();
 		expect(compiled('/')).toBe(before);
 	}, 60_000);
 
-	it('answers with an error page where an edit makes a page CTR refuses', async () => {
+	it('says a page the build will render by SSR, and answers with it all the same', async () => {
 		// Literal markup in the shape of the compile's own marker, which it cannot tell from one.
 		edit(
 			'src/routes/store/+page.svelte',
 			'<script>let { data } = $props();</script><p>%%s0%% here</p><p>{data}</p>',
 		);
-		const after = await until('/store', 'could not be compiled');
-		expect(after.startsWith('500\n')).toBe(true);
+		const after = await until('/store', '%%s0%% here');
+		expect(after).toBe(await kit('/store'));
+		expect(after.startsWith('200\n')).toBe(true);
+		await eventually(() =>
+			readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8').includes('ssr /store'),
+		);
+		expect(readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8')).toContain(
+			'ssr /store',
+		);
 	}, 60_000);
+
+	it("held what it rendered after the edits to Kit's as well", async () => {
+		await quiet();
+		const log = readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8');
+		const wrong = log
+			.split('\n')
+			.filter((line) => / disagreed \d+ /.test(line) && !line.includes(' /box:'));
+		expect(wrong).toEqual([]);
+	}, 60_000);
+});
+
+/** Builds the fork's copy as `vite build` does, with `env` beside the sample's; its exit and output. */
+function build(env: NodeJS.ProcessEnv): { status: number | null; output: string } {
+	const ran = spawnSync(bin, ['build', '--logLevel', 'info'], {
+		cwd: forkDir,
+		env: { ...process.env, SEAM_OUT: '.svelte-kit', SEAM: 'fork', NODE_ENV: 'production', ...env },
+		encoding: 'utf8',
+		maxBuffer: 1 << 28,
+	});
+	return { status: ran.status, output: `${ran.stdout}\n${ran.stderr}` };
+}
+
+function coverage(): Record<string, { render: string; why?: string }> {
+	return (
+		JSON.parse(
+			readFileSync(resolve(forkDir, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
+		) as { coverage: Record<string, { render: string; why?: string }> }
+	).coverage;
+}
+
+describe('the build, over the props kept in development', () => {
+	beforeAll(() => {
+		for (const one of servers) one.kill();
+	});
+
+	it('kept the props of the routes it rendered, one per shape', () => {
+		const kept = readdirSync(
+			resolve(forkDir, '.svelte-kit/seam/payloads', encodeURIComponent('/')),
+		);
+		expect(kept.length).toBeGreaterThan(0);
+		expect(kept.length).toBeLessThanOrEqual(16);
+	});
+
+	it("holds each route's program to Svelte's render over them", () => {
+		const { status, output } = build({});
+		expect(status, output).toBe(0);
+		expect(coverage()['/']?.render).toBe('ctr');
+		expect(coverage()['/box']?.render).toBe('ctr');
+	}, 300_000);
+
+	it('renders a route that disagrees by SSR, and says so', () => {
+		const { status, output } = build({ SEAM_VERIFY_FAULT: '/box' });
+		expect(status, output).toBe(0);
+		expect(coverage()['/box']?.render).toBe('ssr');
+		expect(coverage()['/box']?.why).toContain('disagreed with Svelte');
+		expect(output).toContain('/box renders by SSR');
+	}, 300_000);
+
+	it('fails the build instead, under strict', () => {
+		const { status } = build({ SEAM_VERIFY_FAULT: '/box', SEAM_STRICT: '1' });
+		expect(status).not.toBe(0);
+	}, 300_000);
 });

@@ -162,6 +162,30 @@ describe("the built server answers as Kit's does", () => {
 		expect(kit['/mode']).toContain('<h2>sample === sample === sample</h2>');
 	});
 
+	it('rendered a route it refused by SSR, and said so in the manifest', () => {
+		const manifest = JSON.parse(
+			readFileSync(resolve(root, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
+		) as {
+			routes: Record<string, unknown>;
+			coverage: Record<string, { render: string; why?: string }>;
+		};
+		expect(manifest.routes['/marker']).toBeUndefined();
+		expect(manifest.coverage['/marker']?.render).toBe('ssr');
+		// The literal stands where a marker does, so the refusal names the marker it collided with.
+		expect(manifest.coverage['/marker']?.why).toContain('marker/+root');
+		expect(manifest.coverage['/']?.render).toBe('ctr');
+	});
+
+	it('rendered a component declared SSR in the program, and said so in the manifest', () => {
+		const manifest = JSON.parse(
+			readFileSync(resolve(root, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
+		) as { coverage: Record<string, { render: string; ssr?: { file: string; why: string }[] }> };
+		expect(manifest.coverage['/clocked']?.render).toBe('mixed');
+		expect(manifest.coverage['/clocked']?.ssr?.map((one) => one.file)).toEqual([
+			'src/lib/twice.svelte',
+		]);
+	});
+
 	it('compiled when Kit built, and not when Kit only read the config', () => {
 		expect(compiledOnSync).toBe(false);
 	});

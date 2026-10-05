@@ -130,6 +130,20 @@ const urls = [
 	...new Set([...pages.map((one) => urlOf(one.id)), ...specURLs(plain.dir)].map(based)),
 ].toSorted();
 
+/** Until the fork's check log ends with `idle`, and has for half a second. */
+async function idle(): Promise<void> {
+	const at = resolve(ours.dir, '.svelte-kit/seam/dev.log');
+	const read = (): string => (existsSync(at) ? readFileSync(at, 'utf8') : '');
+	for (let i = 0; i < 1200; i += 1) {
+		const before = read();
+		if (before.trimEnd().endsWith(' idle')) {
+			await new Promise((done) => setTimeout(done, 500));
+			if (read() === before) return;
+		}
+		await new Promise((done) => setTimeout(done, 100));
+	}
+}
+
 const kitPort = 4794;
 const seamPort = 4795;
 const servers: ChildProcess[] = [];
@@ -168,6 +182,11 @@ try {
 		else if (remoteIds(first) === remoteIds(seam)) stamped.push(url);
 		else differ.push({ url, kit: first, seam });
 	}
+	// Each route the fork rendered was compiled behind it, and is held to Kit's from its next render on:
+	// asked again once the compiles have ended, and the check read off its log once it has.
+	await idle();
+	for (const url of urls) await ask(seamPort, url, 60_000);
+	await idle();
 } finally {
 	for (const one of servers) one.kill();
 }
@@ -199,13 +218,15 @@ for (const line of new Set([...refused, ...missed])) console.log(line);
 // What the fork's referee said: a render of ours that Kit's root did not write is this compiler's
 // fault, and answered with Kit's, so the comparison above would not show it. See spec/build.md.
 const kept = resolve(ours.dir, '.svelte-kit/seam/dev.log');
-const disagreed = existsSync(kept)
-	? readFileSync(kept, 'utf8')
-			.split('\n')
-			.filter((line) => / disagreed \d+ /.test(line))
-	: [];
-for (const line of disagreed) console.log(line);
-console.log(`the referee: ${String(disagreed.length)} disagreement(s) with Kit's render`);
+const checkLog = existsSync(kept) ? readFileSync(kept, 'utf8').split('\n') : [];
+const disagreed = checkLog.filter((line) => / disagreed \d+ /.test(line));
+const held = checkLog.filter((line) => / held /.test(line)).length;
+const ssr = checkLog.filter((line) => / ssr /.test(line));
+for (const line of [...disagreed, ...ssr]) console.log(line);
+console.log(
+	`the check: ${String(held)} render(s) held to Kit's, ${String(disagreed.length)} disagreement(s), ` +
+		`${String(ssr.length)} route(s) the build renders by SSR`,
+);
 console.log(
 	`\n${String(urls.length)} URLs: ${String(same.length)} the same, ${String(stamped.length)} the same but for ` +
 		`a dependency's remote id, ${String(differ.length)} different; ` +

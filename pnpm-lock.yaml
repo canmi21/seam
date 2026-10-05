@@ -428,6 +428,9 @@ importers:
       '@seam-js/skeleton':
         specifier: workspace:*
         version: link:../skeleton
+      devalue:
+        specifier: ^5.9.4
+        version: 5.9.4
     devDependencies:
       '@seam-js/stream':
         specifier: workspace:*

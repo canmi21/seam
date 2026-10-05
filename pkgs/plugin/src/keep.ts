@@ -1,13 +1,14 @@
 /**
- * What keeps the dev server right: the log of what it compiled and where it disagreed with Kit's
- * render, the ladder a fault climbs, and the line it prints for a session. See spec/build.md, "How
- * it keeps itself right".
+ * What the dev server's check keeps: the log of what it compiled, what it found the build will render
+ * by SSR and where it disagreed with Kit's render, what a fault did, and the line it prints for a
+ * session. See spec/build.md, "How it keeps itself right".
  */
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { stringify } from 'devalue';
 import type { ViteDevServer } from 'vite';
 
-/** What the dispatcher saw of one side of a disagreement: its bytes, or what it threw. */
+/** What one side of a check came to: its bytes, or what it threw. */
 export interface Answer {
 	body?: string;
 	head?: string;
@@ -15,37 +16,23 @@ export interface Answer {
 	threw?: string;
 }
 
-/**
- * What the process holds across Vite's restarts, which make the plugin again in the same process:
- * the rung, when the last fault and the last restart were, and the session's counts.
- */
-interface Kept {
-	rung: number;
-	lastFault: number;
-	lastRestart: number;
-	counts: {
-		requests: number;
-		refereed: number;
-		disagreements: number;
-		compiles: number;
-		faults: Record<number, number>;
-	};
-	summarised: boolean;
+/** The session's counts, kept on the framework's global so a Vite restart does not lose them. */
+interface Counts {
+	checked: number;
+	disagreements: number;
+	compiles: number;
+	faults: number;
+	ssr: number;
+	/** Payloads devalue could not write, which the build cannot replay. */
+	unwritable: number;
 }
 
 const KEPT = Symbol.for('seam.dev.kept');
-/** A fault more than this long after the last puts the ladder back on its first rung. */
-const QUIET = 10 * 60_000;
-/** Vite restarts at most once in this long, and a fault inside it ends the process. */
-const RESTARTS = 60_000;
 
-function kept(): Kept {
-	const global = globalThis as Record<symbol, Kept | undefined>;
+function kept(): { counts: Counts; summarised: boolean } {
+	const global = globalThis as Record<symbol, { counts: Counts; summarised: boolean } | undefined>;
 	global[KEPT] ??= {
-		rung: 1,
-		lastFault: 0,
-		lastRestart: 0,
-		counts: { requests: 0, refereed: 0, disagreements: 0, compiles: 0, faults: {} },
+		counts: { checked: 0, disagreements: 0, compiles: 0, faults: 0, ssr: 0, unwritable: 0 },
 		summarised: false,
 	};
 	return global[KEPT];
@@ -69,7 +56,7 @@ export class Keeping {
 		}
 	}
 
-	get counts(): Kept['counts'] {
+	get counts(): Counts {
 		return kept().counts;
 	}
 
@@ -83,17 +70,27 @@ export class Keeping {
 		}
 	}
 
-	/** A disagreement, with both answers written beside the log; the number it was given. */
-	disagreed(key: string, ours: Answer, kit: Answer): number {
+	/**
+	 * A disagreement, with both answers and the props written beside the log, the props in devalue as
+	 * Kit writes data, so the case can be run again; the number it was given.
+	 */
+	disagreed(key: string, ours: Answer, kit: Answer, payload: Record<string, unknown>): number {
 		const counts = kept().counts;
 		counts.disagreements += 1;
 		const n = counts.disagreements;
 		const at = (side: string): string =>
-			resolve(dirname(this.#log()), 'dev', `disagreed-${String(n)}.${side}.txt`);
+			resolve(dirname(this.#log()), 'dev', `disagreed-${String(n)}.${side}`);
 		try {
-			mkdirSync(dirname(at('ours')), { recursive: true });
-			writeFileSync(at('ours'), shown(ours));
-			writeFileSync(at('kit'), shown(kit));
+			mkdirSync(dirname(at('ours.txt')), { recursive: true });
+			writeFileSync(at('ours.txt'), shown(ours));
+			writeFileSync(at('kit.txt'), shown(kit));
+			let props: string;
+			try {
+				props = stringify(payload);
+			} catch (error) {
+				props = `not written: ${String((error as Error).message)}`;
+			}
+			writeFileSync(at('props.devalue'), props);
 		} catch {
 			// As above.
 		}
@@ -102,52 +99,28 @@ export class Keeping {
 	}
 
 	/**
-	 * A fault, one rung up the ladder: this compiler starts over (`reset`), then Vite restarts, then
-	 * the process ends. A restart inside a minute of the last one is not made; the process ends
-	 * instead, since a server that keeps restarting is a loop somebody has to kill by hand.
+	 * A fault: the compile starts over (`reset`), and nothing more, since Kit's render answers every
+	 * request whatever the check says. See spec/build.md, "How it keeps itself right".
 	 */
 	async fault(reason: string, reset: () => Promise<void>): Promise<void> {
-		const state = kept();
-		const now = Date.now();
-		if (now - state.lastFault > QUIET) state.rung = 1;
-		state.lastFault = now;
-		let rung = state.rung + 1;
-		if (rung === 3 && now - state.lastRestart < RESTARTS) rung = 4;
-		state.rung = Math.min(rung, 4);
-		state.counts.faults[state.rung] = (state.counts.faults[state.rung] ?? 0) + 1;
-		const where = `The log is ${this.#log()}.`;
-		this.write(`fault, rung ${String(state.rung)}: ${reason}`);
-		const logger = this.#server.config.logger;
-		if (state.rung === 2) {
-			logger.error(`seam: ${reason}. Starting the compile over. ${where}`, { timestamp: true });
-			await reset();
-			return;
-		}
-		if (state.rung === 3) {
-			logger.error(`seam: ${reason}, after starting over. Restarting the dev server. ${where}`, {
-				timestamp: true,
-			});
-			state.lastRestart = now;
-			await this.#server.restart();
-			return;
-		}
-		logger.error(
-			`seam: ${reason}, after the dev server restarted. Stopping it: this is a fault of the compiler's, not of the project's. ${where}`,
+		kept().counts.faults += 1;
+		this.write(`fault: ${reason}; starting the compile over`);
+		this.#server.config.logger.error(
+			`seam: ${reason}. Starting the compile over. The log is ${this.#log()}.`,
 			{ timestamp: true },
 		);
-		process.exit(1);
+		await reset();
 	}
 
 	/** The session in one line, which an author running it for a week reads to know how it went. */
 	summary(): string {
 		const { counts } = kept();
-		const faults = [2, 3, 4].map(
-			(rung) => `${String(counts.faults[rung] ?? 0)} at rung ${String(rung)}`,
-		);
 		return (
-			`seam: this session answered ${String(counts.requests)} request(s), held ${String(counts.refereed)} ` +
-			`render(s) to Kit's, disagreed ${String(counts.disagreements)} time(s), compiled ` +
-			`${String(counts.compiles)} time(s); faults: ${faults.join(', ')}. The log is ${this.#log()}.`
+			`seam: this session held ${String(counts.checked)} render(s) to Kit's and disagreed ` +
+			`${String(counts.disagreements)} time(s), compiled ${String(counts.compiles)} time(s), ` +
+			`started over ${String(counts.faults)} time(s), found ${String(counts.ssr)} part(s) of routes the ` +
+			`build renders by SSR, and could not keep ${String(counts.unwritable)} payload(s) for the ` +
+			`build to replay. The log is ${this.#log()}.`
 		);
 	}
 }

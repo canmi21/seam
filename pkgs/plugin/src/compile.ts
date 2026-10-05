@@ -10,7 +10,7 @@
  * it runs in a process of its own that exits, and the memory goes with it. See `apart.ts`, and
  * spec/build.md.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import fs, { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -28,6 +28,7 @@ import {
 	writeRoot,
 } from '@seam-js/routes';
 import { configureRender, forgetStaging } from '@seam-js/skeleton';
+import { verifier } from './verify.ts';
 
 /** This module's own extension, which its siblings share. See spec/publish.md. */
 const OWN = extname(import.meta.url);
@@ -198,6 +199,10 @@ export async function compileRoutes({
 			}),
 			out,
 			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
+			// Refuse rather than degrade, for a CI holding the application to CTR whole.
+			strict: process.env['SEAM_STRICT'] === '1',
+			// Each route held to Svelte's render over the props kept for it in development.
+			verify: verifier(loader, out),
 			unevaluable: async (entry) => {
 				const one = found.find((each) => each.path === entry.path);
 				if (one === undefined) return null;
@@ -284,21 +289,46 @@ export async function loaderOf(
 				: null;
 		},
 	};
-	const loader = await vite.createServer({
-		...loaded?.config,
-		root,
-		configFile: false,
-		mode,
-		appType: 'custom',
-		logLevel: 'silent',
-		plugins: [remoteStandIns(), ...plugins, ...(command === 'build' ? [built] : [])],
-		server: { middlewareMode: true, hmr: false, watch: null },
-		optimizeDeps: { noDiscovery: true },
-		// A cache of its own. The project's holds what `vite dev` optimized, Svelte under the
-		// development condition among it, and a loader that reused it rendered with Svelte's
-		// development runtime. See spec/publish.md, "Where a compile writes".
-		cacheDir: resolve(out, command === 'build' ? 'vite' : 'vite-dev'),
-	});
+	// Kit's plugin writes an empty `$app/manifest` into `generated/dev` as its config resolves under
+	// `serve`, for the dependency scan before its dev server fills it; made beside a dev server that
+	// already has, the loader emptied the server's own, and writing it back was a second full reload
+	// of the server, which a request in flight met as a 500. So that write is not made. Kit writes
+	// through `fs.writeFileSync` read off the module at the call. See spec/build.md.
+	const appManifest = resolve(outDir, 'generated/dev/app-manifest.js');
+	const write = fs.writeFileSync;
+	if (command === 'serve') {
+		fs.writeFileSync = ((file: Parameters<typeof write>[0], ...rest: unknown[]) => {
+			if (typeof file === 'string' && resolve(file) === appManifest) return;
+			(write as (...all: unknown[]) => void)(file, ...rest);
+		}) as typeof write;
+	}
+	const loader = await vite
+		.createServer({
+			...loaded?.config,
+			root,
+			configFile: false,
+			mode,
+			appType: 'custom',
+			logLevel: 'silent',
+			// What a carried module imports that no file is -- a script run, a module script -- for the
+			// build's check of a route against the props kept for it, which loads one. See `./verify.ts`.
+			plugins: [
+				remoteStandIns(),
+				{ ...running({ bare: true }), enforce: 'pre' } as Plugin,
+				{ ...moduleScripts(), enforce: 'pre' } as Plugin,
+				...plugins,
+				...(command === 'build' ? [built] : []),
+			],
+			server: { middlewareMode: true, hmr: false, watch: null },
+			optimizeDeps: { noDiscovery: true },
+			// A cache of its own. The project's holds what `vite dev` optimized, Svelte under the
+			// development condition among it, and a loader that reused it rendered with Svelte's
+			// development runtime. See spec/publish.md, "Where a compile writes".
+			cacheDir: resolve(out, command === 'build' ? 'vite' : 'vite-dev'),
+		})
+		.finally(() => {
+			fs.writeFileSync = write;
+		});
 	return { loader, loaded, plugins };
 }
 

@@ -31,7 +31,8 @@
 		"@seam-js/program": "workspace:*",
 		"@seam-js/routes": "workspace:*",
 		"@seam-js/runtime": "workspace:*",
-		"@seam-js/skeleton": "workspace:*"
+		"@seam-js/skeleton": "workspace:*",
+		"devalue": "^5.9.4"
 	},
 	"devDependencies": {
 		"@seam-js/stream": "workspace:*",

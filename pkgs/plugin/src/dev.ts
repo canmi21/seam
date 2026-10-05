@@ -1,71 +1,76 @@
 /**
- * The compile, as the dev server runs it: a route compiled when a request first asks for it, and
- * again once a file it was compiled from changes, held in memory rather than written as the
- * build's artifacts. See spec/build.md, "How the dev server compiles a route".
+ * The check the dev server makes behind Kit's render: each route Kit's root renders is compiled, its
+ * program run over the props the root was handed, and held to the bytes Kit wrote, none of which
+ * reaches the response. See spec/build.md, "The dev server answers with Kit's render, and CTR is
+ * checked behind it".
  *
  * What a build does once for every route this does per route, in this process, through a Vite
  * loader made from the project's config the way the build's is (`loaderOf`), and what it produces
  * differs from the build's in two places only. The carried names are not bundled: they are one
  * module that imports each where it lives, which the dev server's own runner loads, so a change to
- * one of them reaches the next request the way it reaches Kit's. And the program is evaluated here
- * and handed to the dispatcher through the framework's global, since the dispatcher is evaluated
- * by that runner and a program is not a module of it.
+ * one of them reaches the next check the way it reaches Kit's render. And the program is held here,
+ * in memory, rather than written as an artifact. See spec/build.md, "How the dev server compiles a
+ * route".
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Connect, ViteDevServer } from 'vite';
+import type { ViteDevServer } from 'vite';
 import type { ModuleRunner } from 'vite/module-runner';
 import { configureDevelopment } from '@seam-js/ast';
 import { carriedNames, carriedSource, forgetModuleScripts } from '@seam-js/carry';
 import { built, type Entry } from '@seam-js/compiler';
 import { script } from '@seam-js/program';
-import { configured, entries, errorEntries, type Found, parsed, RESPONDING } from '@seam-js/routes';
+import { configured, entries, errorEntries, type Found } from '@seam-js/routes';
 import { evaluated, type Render } from '@seam-js/runtime';
 import { configureRender, forgetSources, forgetTimings, timings } from '@seam-js/skeleton';
 import { ARTIFACTS, LOADED_KEY, loaderOf, projectVite, standingIn } from './compile.ts';
 import { type Answer, Keeping } from './keep.ts';
+import { Payloads } from './payloads.ts';
 
 /** Where the dispatcher finds what this compiled, on the framework's global. */
 export const DEV = Symbol.for('seam.dev');
 
 /** What the dispatcher reads of this module, set on the global under `DEV`. */
 export interface Programs {
-	/** The render for a route id or an error tree's id, or undefined where none was compiled. */
-	render: (key: string) => Render | undefined;
-	/** Why a route was left to the framework, by its id, or undefined where it was not. */
-	left: (key: string) => string | undefined;
-	/**
-	 * Told of a route rendered without a program, which a request the middleware did not see -- a
-	 * page Kit's own `fetch` renders inside another request -- is: compiled now, for the next one.
-	 */
-	missed: (key: string) => void;
 	/** Which error tree a failed request renders. See `Routes.failing` in `@seam-js/routes`. */
 	failing: Readonly<Record<string, string>>;
-	/** Whether a render is held to Kit's root, which `SEAM_DEV_CHECK=off` turns off. */
+	/** Whether a render is checked, which `SEAM_DEV_CHECK=off` turns off. */
 	checking: boolean;
-	/** The route whose program is made to write the wrong bytes, for the check of the ladder. */
-	fault: string | undefined;
-	/** Told a route's program wrote what Kit's root did. */
-	agreed: (key: string) => void;
-	/** Told a route's program wrote something else, with both answers. */
-	disagreed: (key: string, answers: { ours: Answer; kit: Answer }) => void;
+	/**
+	 * The program for a route or error tree where one is compiled and current, to check this render
+	 * with; otherwise undefined, and it is compiled behind the response for the next.
+	 */
+	ready: (key: string) => Render | undefined;
+	/**
+	 * The props Kit's root was handed, as the program takes them, kept for the build to hold the
+	 * route's program to. See spec/together.md.
+	 */
+	keep: (key: string, payload: Record<string, unknown>) => void;
+	/** What the program wrote beside what Kit's root wrote, over the same props. */
+	compared: (key: string, ours: Answer, kit: Answer, payload: Record<string, unknown>) => void;
 }
 
-/**
- * A file, and not a directory: a page's path is often a directory of the project's too -- Kit's
- * `basics` serves `/static` and keeps a `static/static` -- and Vite answers neither.
- */
-function isFile(at: string): boolean {
-	return statSync(at, { throwIfNoEntry: false })?.isFile() === true;
+/** A route's bytes with what makes them wrong, for the check of the check. */
+function wrong(done: Awaited<ReturnType<Render>>): Awaited<ReturnType<Render>> {
+	return { ...done, body: `${done.body}<!--seam-fault-->` };
+}
+
+/** The program a check runs: the route's, or, for the check of the check, one writing wrong bytes. */
+function checked(key: string, render: Render): Render {
+	if (process.env['SEAM_DEV_FAULT'] !== key) return render;
+	return (...args) => {
+		const done = render(...args);
+		return 'then' in done ? done.then(wrong) : wrong(done);
+	};
 }
 
 /** One route or error tree, and what was last compiled of it. */
 interface Held {
 	found: Found;
 	stale: boolean;
-	/** Whether a request has asked for it, which is what a recompile ahead of the next one is for. */
+	/** Whether Kit's root has rendered it, which is what a recompile after an edit is for. */
 	asked: boolean;
 	compiling?: Promise<void>;
 	program?: string;
@@ -75,7 +80,10 @@ interface Held {
 	module?: unknown;
 	render?: Render;
 	left?: string;
+	/** What the compile refused, which the build renders by SSR. See spec/together.md. */
 	error?: Error;
+	/** The refusal last said on the terminal, so that it is said once and not once a request. */
+	said?: string;
 	/** The files it was compiled from, which a change to makes it stale. */
 	depends: Set<string>;
 	/** Whether it has been compiled again for a disagreement since a file of it last changed. */
@@ -88,64 +96,74 @@ interface Options {
 }
 
 /**
- * Takes the dev server: compiles what a request is about to render before Kit renders it, and
- * marks stale what a changed file was compiled from. Called from `configureServer`, so that the
- * middleware runs ahead of Kit's.
+ * Takes the dev server's check: what the dispatcher hands over behind each response is compiled for
+ * and held to Kit's bytes, and what a changed file was compiled from is marked stale and compiled
+ * again.
  */
 export function develop(server: ViteDevServer, options: Options): void {
 	const root = server.config.root;
 	const runner = (server.environments['ssr'] as unknown as { runner: ModuleRunner }).runner;
 	const held = new Map<string, Held>();
 	let failing: Record<string, string> = {};
-	let pages: { id: string; pattern: RegExp }[] = [];
 	let listed: Promise<void> | null = null;
 	let loader: Promise<Awaited<ReturnType<typeof loaderOf>> & { modules: ModuleRunner }> | null =
 		null;
 	/** One compile at a time: what a compile configures is module state, shared by every route. */
 	let queue: Promise<unknown> = Promise.resolve();
 	let kit: Awaited<ReturnType<typeof configured>> | undefined;
-	const keeping = new Keeping(server, () =>
-		resolve(root, kit?.outDir ?? '.svelte-kit', ARTIFACTS, 'dev.log'),
-	);
+	/** Checks begun and not yet ended. */
+	let inflight = 0;
+	const artifacts = (): string => resolve(root, kit?.outDir ?? '.svelte-kit', ARTIFACTS);
+	const keeping = new Keeping(server, () => resolve(artifacts(), 'dev.log'));
+	const payloads = new Payloads(artifacts);
 
 	const programs: Programs = {
-		render: (key) => held.get(key)?.render,
-		left: (key) => held.get(key)?.left,
-		missed: (key) => {
-			const one = held.get(key);
-			if (one === undefined) return;
-			one.asked = true;
-			void behind(one);
-		},
 		get failing() {
 			return failing;
 		},
 		checking: process.env['SEAM_DEV_CHECK'] !== 'off',
-		fault: process.env['SEAM_DEV_FAULT'],
-		agreed: (key) => {
-			keeping.counts.refereed += 1;
+		ready: (key) => {
 			const one = held.get(key);
-			if (one !== undefined) one.recompiled = false;
-		},
-		disagreed: (key, { ours, kit: theirs }) => {
-			keeping.counts.refereed += 1;
-			const n = keeping.disagreed(key, ours, theirs);
-			const one = held.get(key);
-			if (one === undefined) return;
-			if (one.recompiled === true) {
-				void keeping.fault(
-					`the program for ${key} still disagrees with Kit's render after it was compiled again (${String(n)})`,
-					startOver,
-				);
-				return;
+			if (
+				one !== undefined &&
+				!one.stale &&
+				one.compiling === undefined &&
+				one.render !== undefined &&
+				current(one)
+			) {
+				return checked(key, one.render);
 			}
-			server.config.logger.warn(
-				`seam: the program for ${key} disagreed with Kit's render (${String(n)}): answered with Kit's, and compiling it again`,
-				{ timestamp: true },
-			);
-			one.recompiled = true;
-			one.stale = true;
-			void behind(one);
+			inflight += 1;
+			void prepare(key)
+				.catch((error: unknown) => {
+					keeping.write(`the check of ${key} failed: ${String((error as Error)?.stack ?? error)}`);
+				})
+				.finally(() => {
+					inflight -= 1;
+					// Said when nothing is left to compile, which is what a harness waits on.
+					if (inflight === 0) keeping.write('idle');
+				});
+			return undefined;
+		},
+		keep: (key, payload) => {
+			// Behind the response: writing a payload is work the request need not wait on.
+			setImmediate(() => {
+				const what = payloads.keep(key, payload);
+				if (what === 'kept') keeping.write(`kept a payload of ${key}`);
+				if (what === 'unwritable') keeping.counts.unwritable += 1;
+				if (what === 'kept' && inflight === 0) keeping.write('idle');
+			});
+		},
+		compared: (key, ours, theirs, payload) => {
+			inflight += 1;
+			void compared(key, ours, theirs, payload)
+				.catch((error: unknown) => {
+					keeping.write(`the check of ${key} failed: ${String((error as Error)?.stack ?? error)}`);
+				})
+				.finally(() => {
+					inflight -= 1;
+					if (inflight === 0) keeping.write('idle');
+				});
 		},
 	};
 	(globalThis as Record<symbol, unknown>)[DEV] = programs;
@@ -168,9 +186,6 @@ export function develop(server: ViteDevServer, options: Options): void {
 					depends: new Set(),
 				});
 			}
-			pages = found
-				.filter((one) => !one.path.startsWith('#'))
-				.map((one) => ({ id: one.path, pattern: parsed(one.path).pattern }));
 		})();
 		return listed;
 	}
@@ -246,7 +261,7 @@ export function develop(server: ViteDevServer, options: Options): void {
 				},
 			});
 			for (const warning of result.warnings) server.config.logger.warn(`seam: ${warning}`);
-			const left = result.left[one.found.path];
+			const left = result.left[one.found.path] ?? result.ssr[one.found.path];
 			const [route] = result.routes;
 			one.left = left;
 			one.error = undefined;
@@ -255,6 +270,7 @@ export function develop(server: ViteDevServer, options: Options): void {
 				one.carried = null;
 			} else {
 				for (const file of route.components) depends.add(resolve(root, file));
+				for (const part of route.ssr) said(one, `${part.file} renders by SSR: ${part.why}`);
 				one.program = script(route.structure, '', carriedNames(route.names, route.file, true));
 				const source = carriedSource(route.file, route.names);
 				if (source === '') one.carried = null;
@@ -303,6 +319,7 @@ export function develop(server: ViteDevServer, options: Options): void {
 				timestamp: true,
 			});
 		}
+		one.said = one.error?.message === one.said ? one.said : undefined;
 		// Where the time went, when asked for, as the build's compile says it. See spec/build.md.
 		if (process.env['SEAM_TIME'] !== undefined) {
 			const report = timings();
@@ -328,20 +345,15 @@ export function develop(server: ViteDevServer, options: Options): void {
 	 * that changed is evaluated again by the runner, and the program is evaluated again over it.
 	 */
 	async function ready(one: Held): Promise<void> {
-		if (one.error !== undefined) throw one.error;
-		if (one.program === undefined) return;
+		if (one.error !== undefined || one.program === undefined) return;
 		let module: unknown = null;
 		if (one.carried !== null && one.carried !== undefined) {
 			try {
 				module = await runner.import(one.carried);
 			} catch (error) {
 				// A module the page imports that throws as it is evaluated, which Kit meets as it loads the
-				// page and answers with its error page: the request is Kit's to answer, as it is in a
-				// build, and nothing renders from this. Said, in case Kit's load of the page succeeds.
-				server.config.logger.warn(
-					`seam: what ${one.found.path} carries did not load, so Kit answers it: ${(error as Error).message}`,
-					{ timestamp: true },
-				);
+				// page: nothing is checked, and the log says so.
+				keeping.write(`what ${one.found.path} carries did not load: ${(error as Error).message}`);
 				one.render = undefined;
 				one.module = undefined;
 				return;
@@ -358,7 +370,6 @@ export function develop(server: ViteDevServer, options: Options): void {
 				`the program for ${one.found.path} does not evaluate: ${(error as Error).message}`,
 				startOver,
 			);
-			throw error;
 		}
 		one.module = module;
 	}
@@ -386,110 +397,88 @@ export function develop(server: ViteDevServer, options: Options): void {
 	}
 
 	/**
-	 * Whether Vite answers the path before Kit is asked: its own modules, a file of the project's, a
-	 * dependency, a static asset. This middleware runs ahead of all of them, and a route matching
-	 * every path would otherwise hold each module the page loads until the route compiled.
+	 * A route compiled where it has to be and evaluated over the carried module as the runner has it
+	 * now, for the next render's check. A refusal is said once per route and reason, as what the build
+	 * renders by SSR, and there is then nothing to check.
 	 */
-	function servedByVite(pathname: string): boolean {
-		if (/^\/(?:@|node_modules\/|__)/.test(pathname)) return true;
-		let path: string;
-		try {
-			path = decodeURIComponent(pathname);
-		} catch {
-			return false;
+	async function prepare(key: string): Promise<void> {
+		await list();
+		const one = held.get(key);
+		if (one === undefined) return;
+		one.asked = true;
+		await fresh(one);
+		if (one.error !== undefined || one.left !== undefined) {
+			said(one, one.error?.message ?? one.left ?? '');
+			return;
 		}
-		if (path === '/' || path.endsWith('/')) return false;
-		const assets = kit?.files.assets;
-		return (
-			isFile(resolve(root, `.${path}`)) ||
-			(assets !== undefined && isFile(resolve(root, assets, `.${path}`)))
+		await ready(one);
+		await handLoaded([one]);
+	}
+
+	/**
+	 * Whether the carried module the program was evaluated over is still the one the runner holds. An
+	 * edit makes Vite drop what the server-side runner evaluated, Kit's own modules among them, and a
+	 * program still bound to the modules from before reads a `$app/paths` Kit's render no longer sets.
+	 */
+	function current(one: Held): boolean {
+		if (one.carried === null || one.carried === undefined) return true;
+		for (const node of runner.evaluatedModules.getModulesByFile(one.carried) ?? []) {
+			if (node.evaluated && node.exports === one.module) return true;
+		}
+		return false;
+	}
+
+	/** A refusal, said once per route and reason as what the build renders by SSR. */
+	function said(one: Held, reason: string): void {
+		if (one.said === reason) return;
+		one.said = reason;
+		keeping.counts.ssr += 1;
+		keeping.write(`ssr ${one.found.path}: ${reason}`);
+		server.config.logger.warn(
+			`seam: the build renders ${one.found.path} by SSR: ${reason.split('\n').slice(0, 4).join(' ')}`,
+			{ timestamp: true },
 		);
 	}
 
 	/**
-	 * What a request for `pathname` may render: the routes it matches, or the tree an unmatched one
-	 * renders, which it renders; and the error trees a failure under those routes renders, which it
-	 * may.
+	 * A program's bytes beside Kit's. A disagreement is logged with both answers and the props, and the
+	 * route compiled again; one that disagrees again after that is a fault.
 	 */
-	function asked(pathname: string, html: boolean): { routes: Held[]; trees: Held[] } {
-		const none = { routes: [], trees: [] };
-		if (servedByVite(pathname)) return none;
-		const base = kit?.paths.base ?? '';
-		let path = pathname;
-		if (base !== '') {
-			if (path !== base && !path.startsWith(`${base}/`)) return none;
-			path = path.slice(base.length) || '/';
-		}
-		const appDir = kit?.appDir ?? '_app';
-		if (path.startsWith(`/${appDir}/`) || path.endsWith('/__data.json')) return none;
-		// Decoded as Kit's `decode_pathname` decodes it, which leaves `%25` as it is: a route whose id
-		// escapes a `%` matches it encoded.
-		try {
-			path = path.split('%25').map(decodeURI).join('%25');
-		} catch {
-			// Kit answers a malformed path with an error page, which is the tree below.
-		}
-		const matched = pages.filter((one) => one.pattern.test(path)).map((one) => one.id);
-		if (matched.length === 0 && !html) return none;
-		const trees = new Set<string>();
-		const responding = failing[RESPONDING];
-		if (responding !== undefined) trees.add(responding);
-		for (const id of matched) {
-			for (const [key, tree] of Object.entries(failing)) {
-				if (key.startsWith(`${id}\n`)) trees.add(tree);
-			}
-		}
-		return matched.length === 0
-			? { routes: heldOf(trees), trees: [] }
-			: { routes: heldOf(matched), trees: heldOf(trees) };
-	}
-
-	function heldOf(keys: Iterable<string>): Held[] {
-		return [...keys].flatMap((key) => {
-			const one = held.get(key);
-			return one === undefined ? [] : [one];
-		});
-	}
-
-	/**
-	 * The path Kit renders for `url` where the project's universal `reroute` hook changes it: Kit
-	 * matches the route against what the hook returns, so that is the route a request renders. Asked
-	 * as Kit asks it, with a `fetch` of the server's own; a hook that throws is Kit's to answer.
-	 */
-	async function rerouted(url: URL): Promise<string | null> {
-		const universal = kit?.files.hooks.universal;
-		if (universal === undefined) return null;
-		const file = [...(kit?.moduleExtensions ?? ['.js', '.ts'])]
-			.map((extension) => `${universal}${extension}`)
-			.find((one) => existsSync(one));
-		if (file === undefined) return null;
-		try {
-			const hooks = (await runner.import(file)) as {
-				reroute?: (event: { url: URL; fetch: typeof fetch }) => unknown;
-			};
-			if (typeof hooks.reroute !== 'function') return null;
-			const path = await hooks.reroute({
-				url: new URL(url),
-				fetch: (input, init) =>
-					fetch(typeof input === 'string' ? new URL(input, url) : input, init),
-			});
-			return typeof path === 'string' ? path : null;
-		} catch {
-			return null;
-		}
-	}
-
-	/** Whether Kit's root is refused, under which nothing is left to compile behind a request. */
-	const strict = process.env['SEAM_KIT_ROOT'] === 'throw';
-
-	/** Compiled and evaluated behind the request that asked, a refusal said where the page is open. */
-	async function behind(one: Held): Promise<void> {
-		await fresh(one);
-		if (one.error !== undefined) {
-			told(one.error);
+	async function compared(
+		key: string,
+		ours: Answer,
+		theirs: Answer,
+		payload: Record<string, unknown>,
+	): Promise<void> {
+		const one = held.get(key);
+		keeping.counts.checked += 1;
+		const same =
+			ours.threw !== undefined && theirs.threw !== undefined
+				? true
+				: ours.body === theirs.body &&
+					ours.head === theirs.head &&
+					JSON.stringify(ours.hashes) === JSON.stringify(theirs.hashes);
+		if (same) {
+			if (one !== undefined) one.recompiled = false;
+			keeping.write(`held ${key}`);
 			return;
 		}
-		await ready(one).catch(() => {});
+		const n = keeping.disagreed(key, ours, theirs, payload);
+		if (one === undefined) return;
+		if (one.recompiled === true) {
+			await keeping.fault(
+				`the program for ${key} still disagrees with Kit's render after it was compiled again (${String(n)})`,
+				startOver,
+			);
+			return;
+		}
+		server.config.logger.warn(
+			`seam: the program for ${key} disagreed with Kit's render (${String(n)}); compiling it again`,
+			{ timestamp: true },
+		);
+		one.recompiled = true;
+		one.stale = true;
+		await fresh(one);
 	}
 
 	/**
@@ -512,59 +501,6 @@ export function develop(server: ViteDevServer, options: Options): void {
 		}
 		listed = null;
 	}
-
-	/** A refusal met behind a request, said on the terminal and on the page open in the browser. */
-	function told(error: Error): void {
-		server.config.logger.error(`seam: ${error.message}`);
-		server.environments['client']?.hot.send({
-			type: 'error',
-			err: { message: error.message, stack: error.stack ?? '' },
-		});
-	}
-
-	const middleware: Connect.NextHandleFunction = (req, _res, next) => {
-		if (req.method !== 'GET' && req.method !== 'HEAD') {
-			next();
-			return;
-		}
-		void (async () => {
-			try {
-				await list();
-				const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-				const html = (req.headers.accept ?? '').includes('text/html');
-				const instead = await rerouted(url);
-				const direct = asked(url.pathname, html);
-				const rerouting = instead === null ? { routes: [], trees: [] } : asked(instead, true);
-				const routes = [...new Set([...direct.routes, ...rerouting.routes])];
-				const trees = [...new Set([...direct.trees, ...rerouting.trees])].filter(
-					(one) => !routes.includes(one),
-				);
-				if (routes.length > 0) keeping.counts.requests += 1;
-				for (const one of routes) {
-					one.asked = true;
-					await fresh(one);
-					await ready(one);
-				}
-				// An error tree is compiled behind the request rather than ahead of it: most requests
-				// render none, and a failure before it is ready is rendered by Kit's root, once. Under
-				// the check that refuses Kit's root, ahead of it.
-				for (const one of trees) {
-					one.asked = true;
-					if (strict) {
-						await fresh(one);
-						await ready(one);
-					} else {
-						void behind(one);
-					}
-				}
-				await handLoaded(routes);
-				next();
-			} catch (error) {
-				next(error);
-			}
-		})();
-	};
-	server.middlewares.use(middleware);
 
 	/** A change: forgotten wherever it was remembered, and what was compiled from it is stale. */
 	let soon: ReturnType<typeof setTimeout> | undefined;
@@ -599,12 +535,16 @@ export function develop(server: ViteDevServer, options: Options): void {
 			}
 		}
 		if (!any) return;
-		// Compiled again ahead of the request that will ask, once the edits stop for a moment; a
-		// refusal is sent to the page open in the browser, which has already taken the change.
+		// Compiled again once the edits stop for a moment, so the check behind the next render has a
+		// program to hold, and what the edit made the build render by SSR is said as soon as it can be.
 		clearTimeout(soon);
 		soon = setTimeout(() => {
 			for (const one of held.values()) {
-				if (one.stale && one.asked) void behind(one);
+				if (one.stale && one.asked) {
+					void fresh(one).then(() => {
+						if (one.error !== undefined) said(one, one.error.message);
+					});
+				}
 			}
 		}, 100);
 	};
