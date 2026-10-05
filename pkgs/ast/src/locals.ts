@@ -436,7 +436,7 @@ export function locals(
 			// once where Svelte's async mode awaits it: `const value = await getValue()` read inside
 			// `keys.every((k) => value.has(k))`. Written out there the `await` is not JavaScript at
 			// all, so it is held, the way a pattern's shared value is, and the read names the
-			// derivation that holds it, which `derive` awaits before anything reading it. Only
+			// derivation that holds it, which the program awaits before anything reading it. Only
 			// there: held anywhere else it would be a derivation where the render could have
 			// evaluated it. See spec/derivation.md.
 			if (

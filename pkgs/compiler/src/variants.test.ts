@@ -11,8 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as svelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compile as deriving } from '@seam-js/derive';
-import { inject } from '@seam-js/injector';
+import { load } from '@seam-js/program';
 import { lower } from '@seam-js/lowering';
 import { combinations, joined, type Structure } from './variants.ts';
 import { compile as compileRoutes, prepare, structures } from './compile.ts';
@@ -155,16 +154,16 @@ describe('a route compiled once per value of a declared domain', () => {
 		expect(top?.t === 'if' && top.branches.length).toBe(LOCALES.length);
 		expect(top?.t === 'if' && top.branches.every((one) => one.test !== null)).toBe(true);
 
-		const derive = deriving(structure.derivations, '');
+		const page = load(structure, '');
 		for (const code of LOCALES) {
 			const data = { locale: { code }, title: '<&', tags: ['x', 'y'] };
-			expect((await inject(structure.ir, derive({ data }))).body, `locale ${code}`).toBe(
+			expect((await page({ data })).body, `locale ${code}`).toBe(
 				await oracle(['page', PAGE], [['greet', CHILD]], data),
 			);
 		}
 
 		const outside = { locale: { code: 'ja' }, title: 'x', tags: [] };
-		expect((await inject(structure.ir, derive({ data: outside }))).body).toBe('');
+		expect((await page({ data: outside })).body).toBe('');
 	});
 });
 
@@ -195,10 +194,10 @@ describe('a `?:` in a value handed to a component the walk cannot enter', () => 
 		expect(top?.t).toBe('if');
 		expect(top?.t === 'if' && top.branches.length).toBe(3);
 
-		const derive = deriving(structure.derivations, '');
+		const page = load(structure, '');
 		for (const n of [0, 1, 2]) {
 			const data = { n, title: `t${String(n)}` };
-			expect((await inject(structure.ir, derive({ data }))).body, `n ${String(n)}`).toBe(
+			expect((await page({ data })).body, `n ${String(n)}`).toBe(
 				await oracle(['choosing', CHOOSING], [['say', CALLER]], data),
 			);
 		}
@@ -221,12 +220,12 @@ describe('a component chosen through a table, read off the entry', () => {
 			})),
 		);
 
-		const derive = deriving(structure.derivations, '');
+		const page = load(structure, '');
 		// Both keys, a key the table lacks, and a falsy one that never reaches the lookup: the
 		// arm for a missing key is what `<svelte:component>` writes `<!--[!--><!--]-->` for.
 		for (const k of ['a', 'b', 'zz', '']) {
 			const data = { k, title: `t-${k}` };
-			expect((await inject(structure.ir, derive({ data }))).body, `k ${JSON.stringify(k)}`).toBe(
+			expect((await page({ data })).body, `k ${JSON.stringify(k)}`).toBe(
 				await oracle(
 					['table', TABLE],
 					[
@@ -268,7 +267,7 @@ describe('a derivation that names another, joined', () => {
 	// A boundary's run reads what it holds by name, `$$caught(() => { (__d0); })`, and each run's
 	// `__d0` is its own. Left as written, the reader named nothing once the runs were renamed, and
 	// the two readers -- written alike -- were shared as one though they read different values.
-	it('reads the value its own run named, under its joined name', () => {
+	it('reads the value its own run named, under its joined name', async () => {
 		const run = (value: string, taken: boolean): Parameters<typeof joined>[1][number] => ({
 			fixed: new Map(),
 			decided: new Map([['data.on', taken]]),
@@ -287,15 +286,27 @@ describe('a derivation that names another, joined', () => {
 			} as unknown as Structure,
 		});
 		const structure = joined('Page', [run('"on"', true), run('"off"', false)]);
-		const derive = deriving(structure.derivations);
 		const named = new Map(structure.derivations.map((one) => [one.name, one.expression]));
 		const readers = structure.derivations.filter((one) => one.expression.startsWith('['));
 		expect(readers).toHaveLength(2);
-		const values = readers.map((one) => derive({ data: { on: true } })[one.name]);
-		expect(values).toEqual([
-			['on', 'ten'],
-			['off', 'ten'],
-		]);
+		// Each reader written out by a slot of its own, so the bytes are its value.
+		const values = await load(
+			{
+				ir: {
+					component: 'Page',
+					body: readers.map((one) => ({
+						t: 'slot' as const,
+						path: one.name,
+						escape: false as const,
+					})),
+					head: [],
+					title: [],
+				},
+				derivations: structure.derivations,
+			},
+			'',
+		)({ data: { on: true } });
+		expect(values.body).toBe('on,tenoff,ten');
 		for (const one of readers) expect(one.expression).not.toMatch(/__d\d/);
 		expect(named.size).toBe(structure.derivations.length);
 	});

@@ -43,4 +43,39 @@ export const cases: Case[] = [
 		source: `${PROPS}<img alt="" {...data.rest} /><span {...data.rest}></span>`,
 		data: [{ rest: { width: '100%', src: 'x' } }, { rest: {} }],
 	},
+	{
+		// What only the head half of a boundary's children throws fails the whole boundary, the body
+		// with it: Svelte's children write both halves into one renderer, which the throw discards.
+		// The route's program writes the body before the head, so the body's half is written again
+		// as the `failed` snippet once the head throws. See spec/ir.md, "A boundary is a `try`".
+		name: 'a boundary whose children throw in the head alone',
+		beside: {
+			Titled:
+				'<script>let { m } = $props();</script>' +
+				'<svelte:head><title>{m.n.x}</title></svelte:head><span>c</span>',
+		},
+		source:
+			"<script>import Titled from './Titled.svelte'; let { data } = $props();</script>" +
+			'<p>{data.a}</p><svelte:boundary><b>{data.a}</b><Titled m={data.m} />' +
+			'{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary><p>after</p>',
+		data: [
+			{ a: 'x', m: { n: { x: 'title' } } },
+			{ a: 'y', m: {} },
+		],
+		transformError: (error) => ({ message: (error as Error).message }),
+	},
+	{
+		// A boundary per item inside another, both halves reading the item's index: the outer run
+		// reads the index as a value of the request's and the hole as a value of the item, two
+		// derivations of one text. The guard over the hole's reads the item's. Kit's async app's
+		// `remote/batch`, whose failed snippet wrote `idx is not defined`.
+		name: 'a boundary per item inside another, both halves reading the index',
+		source:
+			'<script>let { data } = $props();</script><svelte:boundary>' +
+			'{#each data.items as item, idx (idx)}<svelte:boundary><span id="r-{idx + 1}">{item.v.x}</span>' +
+			'{#snippet failed(e)}<span id="r-{idx + 1}">no {e.message}</span>{/snippet}</svelte:boundary>{/each}' +
+			'{#snippet failed(e)}<b>outer {e.message}</b>{/snippet}</svelte:boundary>',
+		data: [{ items: [{ v: { x: 'a' } }, {}, { v: { x: 'c' } }] }, { items: [] }],
+		transformError: (error) => ({ message: (error as Error).message }),
+	},
 ];

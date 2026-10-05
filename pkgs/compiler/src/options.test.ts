@@ -13,8 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as svelte, type CompileOptions } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compile as deriving } from '@seam-js/derive';
-import { inject } from '@seam-js/injector';
+import { load } from '@seam-js/program';
 import { lower } from '@seam-js/lowering';
 import { joined, type Structure } from './variants.ts';
 import { structures } from './compile.ts';
@@ -77,7 +76,7 @@ async function ours(dir: string): Promise<string> {
 			compiled: lowered[at] as unknown as Structure,
 		})),
 	);
-	return (await inject(structure.ir, deriving(structure.derivations, '')({}))).body;
+	return (await load(structure, '')({})).body;
 }
 
 describe("a project's runes option written as a function of the file", () => {
@@ -131,7 +130,7 @@ describe("a project's experimental.async", () => {
 			})),
 		);
 		expect(theirs).toContain('built');
-		expect((await inject(structure.ir, deriving(structure.derivations, '')({}))).body).toBe(theirs);
+		expect((await load(structure, '')({})).body).toBe(theirs);
 	});
 });
 
@@ -184,7 +183,7 @@ describe('an await in a project in async mode, by what it waits on', () => {
 			const props = { data: { x } };
 			const theirs = (await render(mod.default as never, { props: props as never })).body;
 			expect(theirs).toContain(x);
-			const injected = await inject(structure.ir, deriving(structure.derivations, '')(props));
+			const injected = await load(structure, '')(props);
 			expect(injected.body).toBe(theirs);
 		}
 	});

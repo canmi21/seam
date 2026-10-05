@@ -1,12 +1,12 @@
 {
-	"name": "@seam-js/derive",
+	"name": "@seam-js/program",
 	"version": "0.0.1",
-	"description": "Computes the values a page reads per request, for seamjs",
+	"description": "Lowers a route's IR and derivations into the program that writes its bytes, for seamjs",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/canmi21/seam.git",
-		"directory": "pkgs/derive"
+		"directory": "pkgs/program"
 	},
 	"files": [
 		"dist"
@@ -25,8 +25,15 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@seam-js/ast": "workspace:*",
-		"@seam-js/injector": "workspace:*"
+		"@seam-js/injector": "workspace:*",
+		"acorn": "^8.18.0"
+	},
+	"devDependencies": {
+		"@seam-js/carry": "workspace:*",
+		"@seam-js/skeleton": "workspace:*",
+		"quickjs-emscripten": "0.32.0",
+		"rolldown": "~1.2.7",
+		"svelte": "^5.57.1"
 	},
 	"engines": {
 		"node": ">=22.17"

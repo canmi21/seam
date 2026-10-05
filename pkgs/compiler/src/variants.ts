@@ -9,7 +9,7 @@
  * already and nothing above it has to learn a new shape. Which of the two a project ships is a
  * deployment choice and can be taken later; this is the compilation either way.
  */
-import type { Derivation } from '@seam-js/derive';
+import type { Derivation } from '@seam-js/program';
 import type { Branch, ComponentIR, Node } from '@seam-js/injector';
 import { javascript } from '@seam-js/lowering';
 
@@ -18,7 +18,7 @@ import { javascript } from '@seam-js/lowering';
  *
  * `lowering` returns it as `unknown`, because crossing WebAssembly hands back JSON and nothing on
  * that side knows what it means. Joining several does know: it walks the nodes and renames what it
- * finds, so it reads them as the types the injector already declares. Both halves of the build
+ * finds, so it reads them as the types the IR's own package declares. Both halves of the build
  * therefore agree by reading one declaration rather than by being kept in step.
  */
 export interface Structure {

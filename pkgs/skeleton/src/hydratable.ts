@@ -107,11 +107,11 @@ export function tucked(rendered: Rendered, blocks: readonly Block[]): Rendered {
 }
 
 /**
- * The render without the script `hydratable` values went into, which the injector writes per request.
+ * The render without the script `hydratable` values went into, which the program writes per request.
  *
  * `#render_async` prepends it to the head as `\n\t\t<script>` (or `<script nonce=...>`), the
  * entries and `</script>`, and the values in it are the build's -- the sentinels a request's would
- * have been, run once. So it is taken off and the injector writes the request's own, from the
+ * have been, run once. So it is taken off and the program writes the request's own, from the
  * record the derivations filled. See `Skeleton.eager`.
  *
  * Refused where the render wrote more keys than the entry's script makes calls: a key the walk did

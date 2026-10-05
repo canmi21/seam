@@ -747,4 +747,19 @@ export const cases: Case[] = [
 			' let open = $state(true);</script><Held bind:open /><b>{open}</b><i>{data.a}</i>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// A `$derived` in a class the page makes is computed once in a render and on every read
+		// outside one, which Svelte's runtime tells apart by its render context: the route's program
+		// runs inside one, so a read of it twice is the one value. See spec/derivation.md, "A program
+		// runs inside a render".
+		name: 'a derived field of a class the page makes, read twice',
+		alongside: {
+			'store.svelte.ts':
+				'export class Store {\n\tconstructor(rows) { this.rows = rows; }\n\tbyId = $derived(new Map(this.rows.map((row) => [row.id, row])));\n}',
+		},
+		source:
+			"<script>import { Store } from './store.svelte.ts'; let { data } = $props(); const store = new Store(data.rows);</script>" +
+			'<p>{store.byId === store.byId}</p><p>{store.byId.size}</p>',
+		data: [{ rows: [{ id: 1 }, { id: 2 }] }, { rows: [] }],
+	},
 ];

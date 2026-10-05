@@ -26,8 +26,8 @@ import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from '@seam-js/carry';
 import { joined } from '@seam-js/compiler';
-import { compile as compileDerivations, type Derivation } from '@seam-js/derive';
-import { inject } from '@seam-js/injector';
+import { load, type Derivation } from '@seam-js/program';
+import type { ComponentIR } from '@seam-js/injector';
 import { lower } from '@seam-js/lowering';
 import { expressionsOf, helpers } from './helpers.ts';
 import { skeleton } from './skeleton.ts';
@@ -85,7 +85,7 @@ async function attempt(
 	one: Case,
 	at: string,
 ): Promise<{
-	ir?: Parameters<typeof inject>[0];
+	ir?: ComponentIR;
 	derivations?: Derivation[];
 	/** What the expressions call into, which a spread needs: `attributes` is Svelte's own. */
 	carried?: string;
@@ -124,7 +124,7 @@ async function attempt(
 			rendered.defaults,
 		);
 		return {
-			ir: compiled.ir as Parameters<typeof inject>[0],
+			ir: compiled.ir as ComponentIR,
 			derivations: compiled.derivations as Derivation[],
 			// Gathered by the function the build gathers with, over the same files, so what the
 			// check runs is what a page runs rather than a second arrangement of the same parts.
@@ -255,17 +255,17 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 			default: Parameters<typeof render>[0];
 		};
 
-		// Through `derive`, not around it. Injecting `{ data }` alone leaves every derived field
+		// Through the program, not around it. Injecting `{ data }` alone leaves every derived field
 		// undefined, so an accepted case that produced one rendered empty and matched nothing --
 		// which stayed invisible for as long as every accepted case here happened to have none.
-		const derive = compileDerivations(derivations ?? [], carried ?? '');
+		const page = load({ ir: ir as ComponentIR, derivations: derivations ?? [] }, carried ?? '');
 		const payloads = one.props ?? (one.data ?? []).map((data) => ({ data }));
 		for (const props of payloads) {
 			// Both streams. The head used to go uncompared, and a headed component inside a body
 			// block compiled to a head that held its block whichever branch the request took.
 			const options =
 				one.transformError === undefined ? {} : { transformError: one.transformError };
-			const ours = await inject(ir as Parameters<typeof inject>[0], derive(props, options));
+			const ours = await page(props, options);
 			const theirs = render(mod.default, { props: props as never, ...options });
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);
@@ -282,14 +282,14 @@ describe('a component the request hands in that the source names none of', () =>
 	it('throws per request for a value that is something', async () => {
 		const { ir, derivations, carried, refusal } = await attempt(unnamed, 'unnamed-off');
 		expect(refusal).toBeUndefined();
-		const derive = compileDerivations(derivations ?? [], carried ?? '');
 		let thrown: unknown;
 		try {
-			await inject(ir as Parameters<typeof inject>[0], derive({ data: { c: () => {} } }));
+			const page = load({ ir: ir as ComponentIR, derivations: derivations ?? [] }, carried ?? '');
+			await page({ data: { c: () => {} } });
 		} catch (error) {
 			thrown = error;
 		}
-		// Through `derive`, which names the derivation and keeps the cause.
+		// Through the program, which names the derivation and keeps the cause.
 		const chain = [thrown, (thrown as { cause?: unknown } | undefined)?.cause]
 			.map((one) => String((one as Error | undefined)?.message))
 			.join(' <- ');

@@ -1,5 +1,5 @@
 // The seam between this package and Svelte. For every case, the IR the compiler produced is
-// injected here and rendered by Svelte's own server codegen, and the two are compared byte for
+// written into a program here and rendered by Svelte's own server codegen, and the two are compared byte for
 // byte. A Svelte release that changes an anchor or an escaping rule lands here.
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
@@ -8,10 +8,9 @@ import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from '@seam-js/carry';
-import { compile as compileDerivations, type Derivation } from '@seam-js/derive';
+import { load, type Derivation } from './index.ts';
 import { expressionsOf, helpers } from '@seam-js/skeleton';
-import { inject } from './index.ts';
-import type { ComponentIR } from './ir.ts';
+import type { ComponentIR } from '@seam-js/injector';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = resolve(here, '../../../corpus/cases');
@@ -64,7 +63,7 @@ describe.each(files)('%s', (file) => {
 		derivations: Derivation[];
 	};
 	// `data` is what the load stage would have produced, not the props object: the one name it
-	// arrives under is added by the renderer and by `derive`, not written in the fixture.
+	// arrives under is added by the renderer and by the program, not written in the fixture.
 	const payloads = JSON.parse(readFileSync(resolve(cases, `${name}.data.json`), 'utf8')) as {
 		label: string;
 		data: unknown;
@@ -79,8 +78,8 @@ describe.each(files)('%s', (file) => {
 		const skeleton = JSON.parse(
 			readFileSync(resolve(cases, `${name}.skeleton.json`), 'utf8'),
 		) as Parameters<typeof expressionsOf>[0];
-		const derive = compileDerivations(
-			compiled.derivations,
+		const page = load(
+			compiled,
 			await carry(
 				resolve(cases, file),
 				new Map([...carriedBy(cases, expressionsOf(skeleton)), ['*', helpers(skeleton)]]),
@@ -90,9 +89,9 @@ describe.each(files)('%s', (file) => {
 			pathToFileURL(compileTree(resolve(cases, file), new Map())).href
 		)) as { default: Parameters<typeof render>[0] };
 
-		// Both streams, because the injector produces both and comparing one proves half.
+		// Both streams, because the program writes both and comparing one proves half.
 		const expected = render(mod.default, { props: { data } as never });
-		const actual = await inject(compiled.ir, derive({ data }));
+		const actual = await page({ data });
 		expect(actual.body).toBe(expected.body);
 		expect(actual.head).toBe(expected.head);
 	});

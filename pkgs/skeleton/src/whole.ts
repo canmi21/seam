@@ -58,7 +58,7 @@ const SERVER_HELD = new RegExp(`(?:^|[^$\\w.])(?:${[...AT_REQUEST].join('|')})\\
 /**
  * Whether one reachable file renders the same for every request.
  *
- * Not a value the server holds, not a `hydratable` -- whose script the injector writes per
+ * Not a value the server holds, not a `hydratable` -- whose script the program writes per
  * request -- and, for a component, every name its markup reads resolved without a clock, a
  * randomness or a host's global, which is what `resolved()` asks of the entry on the walked path.
  * Module state is asked where it is imported.

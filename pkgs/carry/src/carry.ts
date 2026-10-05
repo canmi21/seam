@@ -22,14 +22,14 @@ import { moduleScripts } from './module-scripts.ts';
 
 /**
  * What stands for Svelte's `hydratable` in a carried file: a function that says what it is if it
- * is ever called unbound, marked so `derive` finds the names it stands under and binds them to the
- * request's `hydratable` instead. See `hydratables` in the injector.
+ * is ever called unbound, marked so the program finds the names it stands under and binds them to the
+ * request's `hydratable` instead. See `hydratables` in the injector's runtime.
  */
 const HYDRATABLE_MARK =
 	"Object.assign(() => { throw new Error('hydratable is bound per request by derive'); }, " +
 	"{ [Symbol.for('seam.hydratable')]: true })";
 
-/** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
+/** An immediately invoked bundle assigning to one name, which the route's script reads back out. */
 const NAME = '__carried';
 
 /** The entry the bundle is made from, which no file backs: the restated imports, as a module. */
@@ -192,10 +192,11 @@ export function running(): Plugin {
  */
 export async function carry(
 	file: string,
-	groups: ReadonlyMap<string, readonly Carried[]>,
+	given: ReadonlyMap<string, readonly Carried[]>,
 ): Promise<string> {
-	if ([...groups.values()].every((names) => names.length === 0)) return '';
+	if ([...given.values()].every((names) => names.length === 0)) return '';
 	const entry = resolve(file);
+	const groups = rendering(given, entry);
 	// One import per name per file, under an alias no file wrote, and one object per file holding
 	// them under the names the file wrote: `files["src/a.svelte"].m`. The evaluator opens a file's
 	// object as a scope, so an expression reads `m` and gets that file's `m`.
@@ -206,7 +207,7 @@ export async function carry(
 		for (const [n, one] of names.entries()) {
 			const alias = `__c${String(at)}_${String(n)}`;
 			// Svelte's `hydratable` runs only inside a render, and a derivation runs outside one, so
-			// the name is carried as a mark `derive` binds to the request's own. See `HYDRATABLE`.
+			// the name is carried as a mark the program binds to the request's own. See `HYDRATABLE`.
 			if (
 				fromSvelte(one.from) &&
 				one.kind === 'named' &&
@@ -299,6 +300,57 @@ function restate(one: Carried, alias: string): string {
 	// An export may be named by a string, which is how paraglide spells `"language.switcher"`.
 	const name = /^[A-Za-z_$][\w$]*$/.test(exported) ? exported : JSON.stringify(exported);
 	return `import { ${name} as ${alias} } from ${from};`;
+}
+
+/**
+ * The names each file of a bundle `carry` makes holds, and which stand for Svelte's `hydratable`:
+ * what a route's program resolves a carried name to without evaluating the bundle. See `carry`.
+ */
+export function carriedNames(
+	given: ReadonlyMap<string, readonly Carried[]>,
+	file: string,
+): Record<string, { name: string; hydratable: boolean }[]> {
+	if ([...given.values()].every((names) => names.length === 0)) return {};
+	return Object.fromEntries(
+		[...rendering(given, resolve(file))].map(([group, names]) => [
+			group,
+			names.map((one) => ({
+				name: one.local,
+				hydratable:
+					fromSvelte(one.from) &&
+					one.kind === 'named' &&
+					(one.exported ?? one.local) === 'hydratable',
+			})),
+		]),
+	);
+}
+
+/**
+ * The groups with what puts Svelte's server runtime in a render while the program runs: `push` and
+ * `pop` of its component context, from the copy of Svelte the bundle's other Svelte imports reach.
+ * Svelte runs a component's script inside one, and what the script makes there reads differently
+ * outside it -- a `$derived` in a class the page constructs is computed once inside a render and on
+ * every read outside one. Svelte exports neither, so the module is named by its file. See
+ * spec/derivation.md, "A program runs inside a render".
+ */
+function rendering(
+	groups: ReadonlyMap<string, readonly Carried[]>,
+	entry: string,
+): Map<string, Carried[]> {
+	const server =
+		bundler === null
+			? ownSvelte({ local: '', from: 'svelte/internal/server', kind: 'named' }).from
+			: resolveBare('svelte/internal/server', entry);
+	const out = new Map([...groups].map(([group, names]) => [group, [...names]]));
+	if (server === null || !server.startsWith('/')) return out;
+	const from = resolve(dirname(server), 'context.js');
+	const shared = out.get('*') ?? [];
+	shared.push(
+		{ local: '$$push', from, kind: 'named', exported: 'push' },
+		{ local: '$$pop', from, kind: 'named', exported: 'pop' },
+	);
+	out.set('*', shared);
+	return out;
 }
 
 /** How many bundles the memo above holds. */

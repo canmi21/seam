@@ -139,7 +139,7 @@ export function collect(node: unknown, walk: Walk): void {
 			const parts = Array.isArray(value) ? value : [value];
 			// Svelte puts `translate` through a replacement table on the way out -- `true` is written
 			// `"yes"` and `false` `"no"` -- and it is the one entry. A literal is folded by Svelte in
-			// the render; a value decided per request is a hole like any other, and the injector
+			// the render; a value decided per request is a hole like any other, and the program
 			// carries the table under the name. See spec/ir.md.
 			// `{n}` is sugar for `n={n}`, and the sugar only holds a bare name: put anything else
 			// between those braces and Svelte's parser stops with `attribute_empty_shorthand`. This

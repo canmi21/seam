@@ -518,7 +518,7 @@ export function hoisting(nodes: readonly unknown[], walk: Walk): Locals['rewrite
 			// One value per item where it calls or makes something the request reaches, as Svelte
 			// evaluates a `{@const}` once in the block's `init`: written out, every read evaluated it
 			// again, and `status`'s per-check `days` -- the check's whole history folded -- was folded
-			// at each of its reads. Held, every read names the one derivation, and `derive` computes
+			// at each of its reads. Held, every read names the one derivation, and the program computes
 			// it once per item. See spec/derivation.md, "An instance is made once".
 			const holding = isNode(init) && computes(init) && !awaitsAtTop(init) && varies(written, walk);
 			const at0 = holding ? kept(written, walk) : -1;

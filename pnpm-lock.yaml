@@ -320,15 +320,15 @@ importers:
       '@seam-js/carry':
         specifier: workspace:*
         version: link:../carry
-      '@seam-js/derive':
-        specifier: workspace:*
-        version: link:../derive
       '@seam-js/injector':
         specifier: workspace:*
         version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering
+      '@seam-js/program':
+        specifier: workspace:*
+        version: link:../program
       '@seam-js/routes':
         specifier: workspace:*
         version: link:../routes
@@ -341,15 +341,6 @@ importers:
         version: 5.57.1
 
   pkgs/create: {}
-
-  pkgs/derive:
-    dependencies:
-      '@seam-js/ast':
-        specifier: workspace:*
-        version: link:../ast
-      '@seam-js/injector':
-        specifier: workspace:*
-        version: link:../injector
 
   pkgs/framework:
     dependencies:
@@ -404,21 +395,9 @@ importers:
         version: 'link:'
 
   pkgs/injector:
-    devDependencies:
-      '@seam-js/ast':
-        specifier: workspace:*
-        version: link:../ast
-      '@seam-js/carry':
-        specifier: workspace:*
-        version: link:../carry
-      '@seam-js/derive':
-        specifier: workspace:*
-        version: link:../derive
-      '@seam-js/skeleton':
-        specifier: workspace:*
-        version: link:../skeleton
+    dependencies:
       svelte:
-        specifier: ^5.57.1
+        specifier: '*'
         version: 5.57.1
 
   pkgs/lowering: {}
@@ -440,12 +419,12 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/derive':
-        specifier: workspace:*
-        version: link:../derive
       '@seam-js/injector':
         specifier: workspace:*
         version: link:../injector
+      '@seam-js/program':
+        specifier: workspace:*
+        version: link:../program
       '@seam-js/routes':
         specifier: workspace:*
         version: link:../routes
@@ -468,6 +447,31 @@ importers:
       vite:
         specifier: ^8.3.2
         version: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)
+
+  pkgs/program:
+    dependencies:
+      '@seam-js/injector':
+        specifier: workspace:*
+        version: link:../injector
+      acorn:
+        specifier: ^8.18.0
+        version: 8.18.0
+    devDependencies:
+      '@seam-js/carry':
+        specifier: workspace:*
+        version: link:../carry
+      '@seam-js/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
+      quickjs-emscripten:
+        specifier: 0.32.0
+        version: 0.32.0
+      rolldown:
+        specifier: ~1.2.7
+        version: 1.2.12
+      svelte:
+        specifier: ^5.57.1
+        version: 5.57.1
 
   pkgs/routes:
     devDependencies:
@@ -493,15 +497,15 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/derive':
-        specifier: workspace:*
-        version: link:../derive
       '@seam-js/injector':
         specifier: workspace:*
         version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering
+      '@seam-js/program':
+        specifier: workspace:*
+        version: link:../program
       rolldown:
         specifier: ~1.2.7
         version: 1.2.7
@@ -523,15 +527,15 @@ importers:
       '@seam-js/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@seam-js/derive':
-        specifier: workspace:*
-        version: link:../derive
       '@seam-js/injector':
         specifier: workspace:*
         version: link:../injector
       '@seam-js/lowering':
         specifier: workspace:*
         version: link:../lowering
+      '@seam-js/program':
+        specifier: workspace:*
+        version: link:../program
       svelte:
         specifier: ^5.57.1
         version: 5.57.1
@@ -833,6 +837,21 @@ packages:
     resolution: {integrity: sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  '@jitl/quickjs-ffi-types@0.32.0':
+    resolution: {integrity: sha512-v9T+GQpmk43VDJ7d72sf0Nexhk+ArvtUihW27dy7lqAl0zBObFKtSBBIm5RBjwIhE8VwsPPm9PNuvPvNqLWUEg==}
+
+  '@jitl/quickjs-wasmfile-debug-asyncify@0.32.0':
+    resolution: {integrity: sha512-EX8zbXwGqCgAE764M+qvkHtyXDi/FUoMBea0JnES7vCM3P7a2+EOZOjGv85wtZ2sJhI1oJ+nekmqpOODFDY+hw==}
+
+  '@jitl/quickjs-wasmfile-debug-sync@0.32.0':
+    resolution: {integrity: sha512-LeYWrPGC1uNCTBWvibo3ZLJj0CSVNYUXvJpXMCmuQ5Sap2cCACc3uvGvYV4homHHBAzfw5akoTqMMS4YFRtw+Q==}
+
+  '@jitl/quickjs-wasmfile-release-asyncify@0.32.0':
+    resolution: {integrity: sha512-3oSwPfja12ICz4aIblB58cuY8JlEq5Txt8Cut4VLo+LH47QN+mzCnSgnbB03hWzg1LBcc+VyyI9UOag7a1NF+Q==}
+
+  '@jitl/quickjs-wasmfile-release-sync@0.32.0':
+    resolution: {integrity: sha512-BKNDI/TPBfGlLNGYpLrhcDGXmIk4xHm4MRAisOBnOzpXVn9HZWsfmMAc9WMBrAHjvvds6HOikKeaOBKdPdpVrg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2044,6 +2063,13 @@ packages:
   quansync@1.0.0:
     resolution: {integrity: sha512-5xZacEEufv3HSTPQuchrvV6soaiACMFnq1H8wkVioctoH3TRha9Sz66lOxRwPK/qZj7HPiSveih9yAyh98gvqA==}
 
+  quickjs-emscripten-core@0.32.0:
+    resolution: {integrity: sha512-QFnPfjFey8EqknSrSxe1hZrf1/8z7/6s1QzGOmKo6++02r7QRRX7ZoyNaZh7JuVjWsVW87KnQrbZqnHkOAzUyg==}
+
+  quickjs-emscripten@0.32.0:
+    resolution: {integrity: sha512-So0Sqw869y/S2oE3Nuc0uT3Dhqgvsj8FSrwBdsuTosVsG8ME5/OcudU1GxsrIFdFABgy17GHnTVO9TYV/bLQcA==}
+    engines: {node: '>=16.0.0'}
+
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
@@ -2535,6 +2561,24 @@ snapshots:
       long: 5.3.2
       protobufjs: 7.6.6
       yargs: 17.7.3
+
+  '@jitl/quickjs-ffi-types@0.32.0': {}
+
+  '@jitl/quickjs-wasmfile-debug-asyncify@0.32.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.32.0
+
+  '@jitl/quickjs-wasmfile-debug-sync@0.32.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.32.0
+
+  '@jitl/quickjs-wasmfile-release-asyncify@0.32.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.32.0
+
+  '@jitl/quickjs-wasmfile-release-sync@0.32.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.32.0
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -3504,6 +3548,18 @@ snapshots:
   punycode@2.3.1: {}
 
   quansync@1.0.0: {}
+
+  quickjs-emscripten-core@0.32.0:
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.32.0
+
+  quickjs-emscripten@0.32.0:
+    dependencies:
+      '@jitl/quickjs-wasmfile-debug-asyncify': 0.32.0
+      '@jitl/quickjs-wasmfile-debug-sync': 0.32.0
+      '@jitl/quickjs-wasmfile-release-asyncify': 0.32.0
+      '@jitl/quickjs-wasmfile-release-sync': 0.32.0
+      quickjs-emscripten-core: 0.32.0
 
   require-directory@2.1.1: {}
 

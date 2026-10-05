@@ -1,7 +1,7 @@
 {
 	"name": "@seam-js/injector",
 	"version": "0.0.1",
-	"description": "Fills the IR with a request's values into the bytes Svelte would render, for seamjs",
+	"description": "The IR's shape, and the runtime a route's program calls, for seamjs",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
@@ -13,23 +13,21 @@
 	],
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./runtime": "./src/runtime.ts"
 	},
 	"publishConfig": {
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
+			},
+			"./runtime": {
+				"types": "./dist/runtime.d.ts",
+				"default": "./dist/runtime.js"
 			}
 		},
 		"access": "public"
-	},
-	"devDependencies": {
-		"@seam-js/ast": "workspace:*",
-		"@seam-js/carry": "workspace:*",
-		"@seam-js/derive": "workspace:*",
-		"@seam-js/skeleton": "workspace:*",
-		"svelte": "^5.57.1"
 	},
 	"peerDependencies": {
 		"svelte": "*"

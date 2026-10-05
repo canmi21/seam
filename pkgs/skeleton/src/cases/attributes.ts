@@ -56,7 +56,7 @@ export const cases: Case[] = [
 	{
 		// The one entry in Svelte's replacement table: `true` is `"yes"` and `false` is `"no"`,
 		// because `translate="false"` means yes. A literal is folded by Svelte in the render, and a
-		// value decided per request goes through the injector's copy of the table.
+		// value decided per request goes through the program's copy of the table.
 		name: 'translate',
 		source: `${PROPS}<p translate={data.f}>{data.a}</p><i translate={true}>x</i><u translate="no">y</u>`,
 		data: [

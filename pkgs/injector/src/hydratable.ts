@@ -4,7 +4,7 @@
  * Svelte's own `hydratable(key, fn)` records `fn()` under `key` while a render runs, and
  * `#render_async` writes every recorded value into a `<script>` ahead of the head, for the client
  * to read back instead of running `fn` again. A derivation runs outside any render, so the one it
- * calls is this: the same record, kept per request on the scope `derive` builds, and the same
+ * calls is this: the same record, kept per request by the route's program, and the same
  * script, written here once the page is injected. See spec/derivation.md.
  *
  * The serialization is Svelte's own devalue, resolved from where Svelte sits, because the bytes are
@@ -14,9 +14,6 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-
-/** Where the record a request's `hydratable` calls fill sits on the scope `derive` builds. */
-export const HYDRATABLES = '$$hydratables';
 
 /** One key's entry, as `encode` in Svelte's `internal/server/hydratable.js` makes it. */
 interface Entry {

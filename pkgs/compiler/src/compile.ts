@@ -26,7 +26,8 @@ import {
 	type Bundle,
 	configureComponentExtensions,
 } from '@seam-js/ast';
-import { carriedBy, carry, rememberedBundles } from '@seam-js/carry';
+import { carriedBy, carriedNames, carry, rememberedBundles } from '@seam-js/carry';
+import { script } from '@seam-js/program';
 import { lower } from '@seam-js/lowering';
 import { aliases, compilerOptions, configured } from '@seam-js/routes';
 import {
@@ -278,8 +279,7 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
  * Compiles a project and writes its server artifacts.
  *
  * ```
- * <out>/server/<id>.json   the IR and its derivations
- * <out>/server/<id>.js     the carried bundle, where the component carries anything
+ * <out>/server/<id>.js     the route's program, the carried bundle before it
  * <out>/server/manifest.json
  * ```
  *
@@ -381,8 +381,7 @@ export async function compile(options: Options): Promise<Report[]> {
 	// Keyed by URL, because that is what a server has in its hand when a request arrives. The id
 	// stays inside: it names the artifacts and it is what Svelte hashes for a scoped class, and
 	// those are questions about the file rather than about the address. See spec/build.md.
-	const routes: Record<string, { id: string; ir: string; carried: string | null; head: string }> =
-		{};
+	const routes: Record<string, { id: string; script: string; head: string }> = {};
 
 	// Back to one entry per route: the runs made for one route are joined into the artifact that
 	// carries all of its structures, under an if over the paths their values were fixed at.
@@ -402,29 +401,20 @@ export async function compile(options: Options): Promise<Report[]> {
 		const carried = await timed('carry (derivation bundle)', () => carry(one.file, together));
 		const files: string[] = [];
 
-		const irFile = `${one.id}.json`;
-		// Compact. It was indented, which is worth having in a fixture somebody reads and is worth
-		// nothing in an artifact a server parses: on press's article the tabs were 7.2 MB of a
-		// 16.5 MB file, and every byte of it is shipped, read and parsed once per process. The
-		// fixtures under `corpus/` are written by their own generator and stay readable.
-		write(resolve(server, irFile), `${JSON.stringify(compiled)}\n`);
-		files.push(irFile);
-
-		// Nothing rather than an empty file, so a page that carries nothing ships nothing. It is
-		// JavaScript and it is still an artifact: a backend that is not Node reads this file too
-		// and hands it to its own evaluator, so bundling it into one backend's program would make
-		// the two read code that arrived by different routes. See spec/build.md.
-		let carriedFile: string | null = null;
-		if (carried !== '') {
-			carriedFile = `${one.id}.js`;
-			write(resolve(server, carriedFile), carried);
-			files.push(carriedFile);
-		}
+		// The route's program, with the bundle it calls before it: one script, which every backend
+		// evaluates once and calls once a request. It is still an artifact rather than part of a
+		// backend's own program, so that two backends read code that arrived the same way. See
+		// spec/build.md.
+		const scriptFile = `${one.id}.js`;
+		write(
+			resolve(server, scriptFile),
+			`${script(compiled, carried, carriedNames(together, one.file))}\n`,
+		);
+		files.push(scriptFile);
 
 		routes[one.path] = {
 			id: one.id,
-			ir: irFile,
-			carried: carriedFile,
+			script: scriptFile,
 			head: options.assets?.[one.path] ?? '',
 		};
 		reports.push({
@@ -440,19 +430,7 @@ export async function compile(options: Options): Promise<Report[]> {
 		copyFileSync(resolve(options.shell), resolve(server, 'app.html'));
 	}
 
-	// Whether anything in this artifact has to be evaluated rather than walked.
-	//
-	// Walking the IR needs a dotted path, an escape and a truthiness test, and none of those is
-	// JavaScript; a derivation is the only thing that is. So a backend embeds an engine exactly when
-	// this is true, which for a compiled binary is a decision about the whole artifact rather than
-	// about one route -- one component with a derivation is enough. Stated here so that deciding it
-	// is reading one field rather than scanning every route. See spec/ir.md.
-	const expressions = reports.some((one) => one.derivations > 0);
-
-	write(
-		resolve(server, 'manifest.json'),
-		`${JSON.stringify({ expressions, routes, left }, null, '\t')}\n`,
-	);
+	write(resolve(server, 'manifest.json'), `${JSON.stringify({ routes, left }, null, '\t')}\n`);
 	// Where the time went, when asked for: a compile nests a walk inside a render inside a stage,
 	// and which of them costs what has to be measured rather than reasoned about. See spec/build.md.
 	if (process.env['SEAM_TIME'] !== undefined) {

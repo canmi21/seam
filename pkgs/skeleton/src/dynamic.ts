@@ -257,14 +257,14 @@ export function expressionIn(text: string): { node: unknown; text: string; offse
 }
 
 /**
- * A `hydratable` call in a script the run would answer. The script the injector writes is made from
+ * A `hydratable` call in a script the run would answer. The script the program writes is made from
  * the entry's own calls, computed first on every request, and a run cannot hand back which calls it
  * made. See spec/derivation.md.
  */
 export const HYDRATABLE = /\bhydratable\b/;
 
 export const HYDRATABLE_RUN =
-	'a `hydratable` call in a script this compiler runs per request: the script the injector ' +
+	'a `hydratable` call in a script this compiler runs per request: the script the program ' +
 	'writes is made from the calls the entry makes first, and a run cannot hand back which it ' +
 	'made. See spec/derivation.md';
 

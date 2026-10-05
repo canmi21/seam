@@ -349,7 +349,7 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 	// author's name is shadowed, and the block's number is on it, so no two of them collide
 	// where one each sits inside another. Each name the pattern binds is then an expression
 	// over that one, taken apart the way a snippet's parameter is -- so a member stays a
-	// path the injector resolves per item, and everything else is a derivation over the
+	// path the program reads per item, and everything else is a derivation over the
 	// binding, which is what a derivation reading an each's name already is.
 	const held = `$$item${String(index)}`;
 	// What the block binds stands for itself and not for a declaration of the same name.

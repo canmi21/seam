@@ -12,8 +12,7 @@ import { compile as compileComponent, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { carry } from '@seam-js/carry';
 import { decidedAs, joined, merged, structures } from '@seam-js/compiler';
-import { compile as compileDerivations } from '@seam-js/derive';
-import { inject } from '@seam-js/injector';
+import { load, type Render } from '@seam-js/program';
 import { lower } from '@seam-js/lowering';
 import type { Config } from './corpus.ts';
 
@@ -33,11 +32,11 @@ export interface Rendered {
 export async function ours(
 	dir: string,
 	props: Record<string, unknown>,
-	/** The policy the oracle is handed, handed to the injector as the plugin hands it Kit's. */
+	/** The policy the oracle is handed, handed to the program as the plugin hands it Kit's. */
 	csp?: Config['csp'],
 	/** What the oracle is handed as `transformError`, handed to the derivations as a render option. */
 	transformError?: Config['transformError'],
-): Promise<Awaited<ReturnType<typeof inject>>> {
+): Promise<Awaited<ReturnType<Render>>> {
 	// Not `compile()`: that batches lowering across a whole project and writes artifacts to disk,
 	// and this is one component compared in memory. The steps are its steps.
 	const runs = await structures({ path: '/', component: 'main.svelte' }, dir);
@@ -61,11 +60,11 @@ export async function ours(
 	);
 	// One bundle over what every structure of it calls, which is what a route gets.
 	const carried = await carry(first.file, merged(runs.map((one) => one.names)));
-	const derive = compileDerivations(compiled.derivations, carried);
+	const page = load(compiled as Parameters<typeof load>[0], carried);
 	return await seededly(async () =>
-		inject(
-			compiled.ir as Parameters<typeof inject>[0],
-			derive(props, transformError === undefined ? {} : { transformError }),
+		page(
+			props,
+			transformError === undefined ? {} : { transformError },
 			csp === undefined ? {} : { csp },
 		),
 	);

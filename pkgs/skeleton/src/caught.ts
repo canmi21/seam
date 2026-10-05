@@ -10,7 +10,7 @@ type Outcome = { threw: false } | { threw: true; value: unknown; json: string };
 const thenable = (value: unknown): value is PromiseLike<unknown> =>
 	typeof (value as { then?: unknown } | null)?.then === 'function';
 
-/** Whether a throw is `derive`'s account of a derivation failing, carrying the throw as `cause`. */
+/** Whether a throw is the program's account of a derivation failing, carrying the throw as `cause`. */
 const isWrapped = (value: unknown): value is { cause: unknown } =>
 	typeof value === 'object' &&
 	value !== null &&
@@ -19,7 +19,7 @@ const isWrapped = (value: unknown): value is { cause: unknown } =>
 
 /**
  * What a boundary's run computed, per request: the outcome under the boundary's key, and each value
- * under its guard's. Keyed by the request's own object, which `derive` binds as `$$request` for every
+ * under its guard's. Keyed by the request's own object, which the program binds as `$$request` for every
  * derivation of one request and for no other, so a table lives exactly as long as its request. See
  * spec/ir.md, "A value is computed once, by the run, and the hole reads it".
  */
@@ -60,10 +60,10 @@ export function caught(
 		});
 	const failed = (thrown: unknown): Outcome | Promise<Outcome> => {
 		// What the children threw, not the derivation evaluator's account of it: a value the run
-		// reads as a held reference is a derivation, and one that throws is wrapped by `derive` in
+		// reads as a held reference is a derivation, and one that throws is wrapped by the program in
 		// a `DerivationFailed` naming its source, for the author of a build to read. Svelte hands
 		// `transformError` the author's own error, so the wrapper comes off, by its name rather
-		// than by class: this file is carried into the bundle and evaluated apart from `derive`,
+		// than by class: this file is carried into the bundle and evaluated apart from the program,
 		// so it imports nothing of it and shares no `Error` with it to test `instanceof` against.
 		let error = thrown;
 		while (isWrapped(error)) error = error.cause;

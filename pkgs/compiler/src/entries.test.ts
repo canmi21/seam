@@ -10,8 +10,7 @@ import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from '@seam-js/carry';
-import { compile as compileDerivations } from '@seam-js/derive';
-import { inject } from '@seam-js/injector';
+import { load } from '@seam-js/program';
 import { lower } from '@seam-js/lowering';
 import { entries } from '@seam-js/routes';
 import { appStateModule as appState, expressionsOf, helpers } from '@seam-js/skeleton';
@@ -171,7 +170,7 @@ describe('a route is compiled from its generated root', () => {
 				['*', helpers(runs[0]!.skeleton)],
 			]),
 		);
-		const derive = compileDerivations(structure.derivations, carried);
+		const program = load(structure, carried);
 
 		compiled(resolve(project, 'src'));
 		compiled(resolve(project, '.svelte-kit/seam'));
@@ -187,7 +186,7 @@ describe('a route is compiled from its generated root', () => {
 				props[`data_${String(at)}`] = at === 0 ? site : { ...site, ...page };
 			});
 			props['page'] = pageOf(id, `http://localhost${id}`, params, { ...site, ...page });
-			const ours = await inject(structure.ir, derive(props));
+			const ours = await program(props);
 			// Kit hands the root `page` as a prop and the same object to `$app/state` through the
 			// context, under `__request__`; both are given here as `render_response` gives them.
 			const theirs = render(mod.default, {

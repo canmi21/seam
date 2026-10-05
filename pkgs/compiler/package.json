@@ -27,9 +27,9 @@
 	"dependencies": {
 		"@seam-js/ast": "workspace:*",
 		"@seam-js/carry": "workspace:*",
-		"@seam-js/derive": "workspace:*",
 		"@seam-js/injector": "workspace:*",
 		"@seam-js/lowering": "workspace:*",
+		"@seam-js/program": "workspace:*",
 		"@seam-js/routes": "workspace:*",
 		"@seam-js/skeleton": "workspace:*"
 	},

@@ -248,7 +248,7 @@ export interface Skeleton {
 	 * and writes every key into the script ahead of the head. A derivation is computed when it is
 	 * read, so one the page never reads -- `await hydratable(...)` into a name nothing uses, or read
 	 * only behind a boundary's pending branch -- would never have been called. The script itself is
-	 * written per request by the injector rather than taken from the render, whose values are the
+	 * written per request by the program rather than taken from the render, whose values are the
 	 * build's. See spec/derivation.md.
 	 */
 	eager: { expression: string; files: string[] }[];

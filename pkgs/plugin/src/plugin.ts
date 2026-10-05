@@ -5,7 +5,7 @@
  * this plugin changes one thing in the first and nothing in the second: the root component Kit's
  * server renders a page with. Kit's `runtime/components/root.svelte`, where `render.js` imports
  * it, is resolved to a component of this plugin's that renders from the compiled artifacts instead
- * -- `inject(ir, derive(props))` pushed into the renderer Kit's `render(Root, ...)` made -- and
+ * -- the route's program, called with the props, pushed into the renderer Kit's `render(Root, ...)` made -- and
  * everything around that call is Kit's own: routing, the `load` functions, the data script, the
  * head, the client that hydrates against the bytes. See spec/framework.md.
  *
@@ -289,8 +289,7 @@ function dispatcher(
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
 	// repository's package names mean nothing.
-	const injector = here.resolve('@seam-js/injector');
-	const derive = here.resolve('@seam-js/derive');
+	const runtime = here.resolve('@seam-js/injector/runtime');
 	// The bundler writes each reference as the asset's URL relative to the chunk it ends up in.
 	const files = [...emitted]
 		.map(([name, ref]) => `${JSON.stringify(name)}: import.meta.ROLLUP_FILE_URL_${ref}`)
@@ -338,8 +337,7 @@ import * as appManifest from '$app/manifest';
 import * as appPaths from '$app/paths';
 import * as kitExports from '@sveltejs/kit';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
-import { inject } from ${JSON.stringify(injector)};
-import { compile as derivations } from ${JSON.stringify(derive)};
+import { evaluated } from ${JSON.stringify(runtime)};
 ${imports}${remoteImports}${loadedImports}
 // What Kit's build and server decide, handed to the derivations: the manifest, \`$app/paths\`,
 // whose \`resolve\` reads the request Kit is answering, the two objects
@@ -363,14 +361,13 @@ function treeOf(props) {
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 
-// Parsed once per route, on its first request rather than at startup.
-const compiled = new Map();
-function artifact(entry) {
-	let held = compiled.get(entry.id);
+// Evaluated once per route, on its first request rather than at startup.
+const programs = new Map();
+function programOf(entry) {
+	let held = programs.get(entry.id);
 	if (held === undefined) {
-		const { ir, derivations: list } = JSON.parse(read(entry.ir));
-		held = { ir, derive: derivations(list, entry.carried === null ? '' : read(entry.carried)) };
-		compiled.set(entry.id, held);
+		held = evaluated(read(entry.script));
+		programs.set(entry.id, held);
 	}
 	return held;
 }
@@ -395,7 +392,7 @@ export default function Root($$renderer, props) {
 	const failed = props.error !== undefined || props.page?.error != null;
 	const entry = manifest.routes[failed ? treeOf(props) : props.page?.route?.id];
 	if (entry === undefined) ${toKit}
-	const { ir, derive } = artifact(entry);
+	const render = programOf(entry);
 	// The generated root's props: Kit's tree, a level per node, its data already the merge of the
 	// levels above it as \`render_response\` builds it.
 	const payload = { page: props.page, form: props.form, error: props.error };
@@ -410,17 +407,21 @@ export default function Root($$renderer, props) {
 	const { csp, transformError } = $$renderer.global;
 	let injected;
 	try {
-		injected = inject(ir, derive(payload, { transformError }), {
+		injected = render(payload, { transformError }, {
 			csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
+			bare: true,
 		});
 	} catch (error) {
 		throw original(error);
 	}
-	const write = (renderer, { body, head, hashes }) => {
-		if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
-			throw new Error(\`the artifact for \${entry.id} is not a root's bytes\`);
+	const write = (renderer, { body, head, hashes, bare }) => {
+		if (bare !== true) {
+			if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
+				throw new Error(\`the artifact for \${entry.id} is not a root's bytes\`);
+			}
+			body = body.slice(OPEN.length, body.length - CLOSE.length);
 		}
-		renderer.push(body.slice(OPEN.length, body.length - CLOSE.length));
+		renderer.push(body);
 		if (head !== '') renderer.head((inner) => inner.push(head));
 		for (const hash of hashes?.script ?? []) csp.script_hashes.push(hash);
 	};

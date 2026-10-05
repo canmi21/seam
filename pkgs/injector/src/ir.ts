@@ -1,3 +1,6 @@
+/** What a payload is, as the program and the checks read it: names to values. */
+export type Scope = Record<string, unknown>;
+
 export type EscapeMode = 'content' | 'attr';
 
 /**
