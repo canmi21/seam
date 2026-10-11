@@ -384,7 +384,7 @@ their machine already**, and a build step that assumes one assumes nothing.
 The deployed server is where the constraint actually mattered, and that is where it still holds:
 no UI code and no framework, for every route the artifact names CTR whole. A JavaScript engine is in every backend, QuickJS in Rust's, so what
 runs there is a question of what the artifact asks of it, not of whether one is present
-([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with QuickJS").
+(RFC aodmv).
 
 ## Where the code is against this
 

@@ -1,7 +1,7 @@
 # What was read out of Svelte's source, and what each reading decided
 
-**This file is the record of the readings, and [roadmap.md](roadmap.md) is what is left.** Every
-entry here began as an item of the roadmap -- a refusal, a sample writing bytes that are not
+**This file is the record of the readings, and the RFCs filed under `rendering` are what is
+left.** Every entry here began as an item of what was left -- a refusal, a sample writing bytes that are not
 Svelte's, a column nobody had read -- and was closed by reading the transform and the runtime,
 forming the rule, measuring it with Node against Svelte's own output, and then writing ours. The
 rule each reading produced lives where the rule belongs, [refusals.md](refusals.md),
@@ -752,7 +752,7 @@ The six were counted under **decided** in [conformance.md](conformance.md), and 
 
 **`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **What the render
 computes per request, and what each item was** below. It was written here as abandoned, which reads as work nobody wanted rather than as
-the scope line, and those are the two things [roadmap.md](roadmap.md) exists to keep apart.
+the scope line, and those are the two things [scope.md](scope.md) exists to keep apart.
 
 **A `<svelte:boundary>` whose body throws: moved.** This said the request-dependent side was a gap
 waiting for the two halves to be told apart. Telling them apart is not what decides it: what the
@@ -854,7 +854,7 @@ harness's own failure, sitting in the column [suite.md](suite.md) requires to be
 judgement and nobody else's. 276 of those samples agree with no change to the compiler. Four were
 work: one wrote bytes that are not Svelte's and three were refused, and none of the four was the
 construct its message named. **The denominator is the half nothing was checking**, and the rule
-[roadmap.md](roadmap.md) already stated for the oracle's column held for the skips word for word.
+[scope.md](scope.md) already stated for the oracle's column held for the skips word for word.
 
 The eleven before those were three constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
 snippet whose bytes the request decides, two; and a bare global, one -- and all three were filed as
@@ -1087,7 +1087,7 @@ every route compiles from its real root, layout and all, and matches Svelte's re
 context press's layout sets reaches the page because the two are one walk. Held against Kit
 itself too: the body a production build of press answers a request with, from its own `load`
 functions, is byte for byte what the compiled root injected with that request's data gives, on
-every route. The scope line in [roadmap.md](roadmap.md) is measured, not claimed.
+every route. The scope line in [scope.md](scope.md) is measured, not claimed.
 
 **Where request context sits: settled, and served.** In the root's props, the `page` Kit builds
 per request and `form`, with `params` passed down as `page.params` the way Kit's root passes it; a

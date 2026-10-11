@@ -93,7 +93,7 @@ where Svelte's own `render()` takes any value as a prop. **They are split.**
   that is not data, is the framework layer's, as Kit rebuilds one by running a universal `load`
   again in the browser.
 
-This is Kit's own arrangement, and it follows from the scope line in [roadmap.md](roadmap.md):
+This is Kit's own arrangement, and it follows from the scope line in [scope.md](scope.md):
 compile-time rendering differs from Svelte's server render only in when the render runs, and that
 render is handed whatever the load stage made.
 

@@ -33,7 +33,7 @@ offered rather than one chosen. When `seamjs` can be published, the entry moves 
 alias has to land on the fork itself, so the entry's name is the fork's, and `pkgs/plugin` -- what
 the fork's `sveltekit()` calls, and what still runs beside a project's own Kit -- is
 `@seam-js/plugin`. The fork is not released yet ([framework.md](framework.md), "It is not published
-yet"), and `private` until milestone A is accepted ([roadmap.md](roadmap.md)); the `@canmi/seamjs` releases up to `0.0.2` were the plugin under
+yet"), and `private` until milestone A is accepted (RFC adio2); the `@canmi/seamjs` releases up to `0.0.2` were the plugin under
 the entry's name, and the fork's first release, at Kit's version line, follows them. Until then
 nothing is published: a release of the scope would name a plugin no released entry calls.
 

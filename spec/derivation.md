@@ -822,7 +822,7 @@ one name kept, because a JavaScript server has it by definition and the load sta
 artifact whose derivation reads it is therefore one only a JavaScript backend can serve: QuickJS
 has no `process` either, and nothing here makes that up. That is a real limit on the second backend,
 recorded rather than argued away, and the build names such a route as one Rust does not serve
-([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with QuickJS"); the way out for an author who wants both is the same as
+(RFC aodmv); the way out for an author who wants both is the same as
 for `frag`, which is to read it in the load stage and put the value in the data.
 
 **`globalThis` is not one of them, and measuring said so.** The object is the same object on both

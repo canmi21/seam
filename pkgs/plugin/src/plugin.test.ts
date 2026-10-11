@@ -7,8 +7,7 @@
 // fork would write it, is built once more. See spec/framework.md.
 //
 // The fork's build refuses Kit's own root: a render handed to it throws instead, so every answer
-// that matches Kit's was rendered from the artifacts, error pages included. See spec/roadmap.md,
-// "A: Kit's place, by an alias, with CTR where SSR was".
+// that matches Kit's was rendered from the artifacts, error pages included. See RFC adio2.
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';

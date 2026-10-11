@@ -49,8 +49,7 @@ const RENDER = '/runtime/server/page/render.js';
  * The environment variable that makes a build refuse Kit's root: with `throw`, the dispatcher
  * throws, and says so on stderr, wherever it would have handed a render to Kit's own root. The check
  * milestone A holds a production build to -- no request runs SSR -- is the stage-two comparison and
- * Kit's specs passing under it. See spec/roadmap.md, "A: Kit's place, by an alias, with CTR where
- * SSR was".
+ * Kit's specs passing under it. See RFC adio2.
  */
 export const KIT_ROOT_CHECK = 'SEAM_KIT_ROOT';
 

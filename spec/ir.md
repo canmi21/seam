@@ -544,8 +544,7 @@ the program's ("A route is one program").
 
 **Every backend has a JavaScript engine.** Rust serves with QuickJS, which is always in the
 process, or with Node beside it; there is no Rust backend without an engine, and no route is ever
-served by walking the IR alone ([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with
-QuickJS"). This section used to say the opposite: that holding only paths let a backend serve a
+served by walking the IR alone (RFC aodmv). This section used to say the opposite: that holding only paths let a backend serve a
 component with no JavaScript engine, that a compiled backend chose whether to embed one from a
 `cfg` flag, and that a manifest field `expressions` answered it. None of that was built, and it no
 longer stands.

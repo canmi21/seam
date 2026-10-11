@@ -64,8 +64,7 @@ fallback that does it for some components does it, and the guarantee stops being
 
 **A backend that is not Node could not do it by itself.** A Rust server has no Svelte renderer of
 its own; it reaches one only by starting Node, which it does for the components an author declared
-SSR and for nothing else ([roadmap.md](roadmap.md), "D: Rust as the server, with Node for what is
-declared SSR"). A fallback would start it for whatever the compiler refused, so whether a page
+SSR and for nothing else (RFC c59q8). A fallback would start it for whatever the compiler refused, so whether a page
 could be served would turn on whether Node was there. That is a divergence, and divergence is what
 this protocol governs.
 
@@ -84,7 +83,7 @@ A's acceptance, the declaration is `export const seam = 'ssr'` in a component's 
 undeclared component the compiler refuses is rendered by SSR rather than failing the build. What
 follows is the plan as it stood._
 
-Request-time rendering beside compile-time is milestone B of [roadmap.md](roadmap.md) --
+Request-time rendering beside compile-time is milestone B, RFC c3j48 --
 synchronous first, asynchronous straight after -- and **it is not started before milestone A is
 accepted**: A changes when the UI is rendered and nothing else, and the first mode has to be the one
 explanation a mixed page's failure cannot have. **No refusal waits on it**: what the server render
@@ -143,7 +142,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | a name assigned or an object mutated after it is declared, where the statements read the request, in a child's run | the entry's script run answers it ([derivation.md](derivation.md), "Where substitution cannot follow, the script runs as Svelte compiled it"); a child's run is written at each read rather than held, so a change one read makes is not seen by the next | gap |
 
 Every row is a gap, which is the rule at the top of this file. Two used to be marked as decisions,
-and neither was. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
+and neither was. Their RFCs, filed under `rendering`, say what each waits on.
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
@@ -156,14 +155,14 @@ in Svelte's public AST union and was in neither `REFUSED` nor the walk's switch 
 somebody else chose ran into it. So the check is joined by Svelte's own 2388 samples, compared
 against the same oracle: [suite.md](suite.md) has what that is and what it said.
 
-## What is still refused is ranked in one place, by what it waits on
+## What is still refused is filed as RFCs, each with what it waits on
 
-[roadmap.md](roadmap.md) holds every construct still refused, sorted by what each waits on. The
-line it checks each item against is the scope line, which is the one at the top of this file and is
+The RFCs filed under `rendering` hold every construct still refused, each with what it waits on.
+The line each is checked against is the scope line, which is the one at the top of this file and is
 stated once more there: before hydration the page is what SvelteKit's SSR would serve, after it a
 standard Svelte SPA, and nothing is given up -- per request is when part of the work happens, never
 a reason it is not done. The reasoning behind each refusal stays in
-this file; the ranking and the dependencies are there.
+this file; what each waits on is in its RFC.
 
 ## How far the subset is from the ecosystem, measured
 
@@ -603,7 +602,7 @@ is evaluated is part of what it means here, and that is the one thing substituti
 
 Only the binding the module changes is refused, not everything imported from it: calling `mark` is
 the ordinary case and stays. Only a relative module, whose source this can read; a package's is a
-hole, in [roadmap.md](roadmap.md).
+hole, RFC jf5rl.
 
 **It was filed as the scope line, and that was wrong.** Exported state a module changes is state
 the process holds: SSR reads it as it stands at the request, and the reading was that a build can
@@ -630,7 +629,7 @@ Refused rather than made a marker: a derivation is evaluated outside `render()`,
 context to read from. Refused at the reader rather than at the setter, so the ordinary case stays
 -- a package's component setting a context its children read from values nobody's request decides
 is what lets the walk enter both, and that is measured too. Following the value from the setter to
-the reader, the way a prop is followed, is what would make it work; see [roadmap.md](roadmap.md).
+the reader, the way a prop is followed, is what would make it work; RFC zt1ln.
 
 **A slot group is a fragment of the caller's, and `is_standalone` is read for it there.** It was
 inherited from the component the `<slot>` sits in, which is a different fragment. The rule names

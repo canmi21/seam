@@ -2,7 +2,7 @@
  * One of SvelteKit's own test apps under Vite's dev server, twice -- Kit's own and the fork's --
  * and every page asked of both: the responses have to be the same bytes. The dev server's half of
  * the comparison `compare.ts` makes of the build. See spec/conformance.md, "Stage 2", and
- * spec/roadmap.md, "Vite's dev server: CTR under HMR".
+ * RFC 5k5pj.
  *
  *   node pkgs/apps/src/compare-dev.ts --app=basics
  *   node pkgs/apps/src/compare-dev.ts --app=basics --kit-root=throw

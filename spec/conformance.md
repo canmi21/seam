@@ -5,7 +5,7 @@ interchangeable. This file puts them in order, says what each one proves that th
 cannot, and fixes the condition for calling a stage done -- so that "it works" is a reading of a
 number somebody else wrote rather than a judgement made here.
 
-[suite.md](suite.md) is the machinery for the first. [roadmap.md](roadmap.md) ranks the individual
+[suite.md](suite.md) is the machinery for the first. The RFCs filed under `rendering` hold the individual
 gaps. This file is only the order.
 
 ## The order, and why it is this one
@@ -121,7 +121,7 @@ without being counted**, which is the whole reason it is read out rather than to
 
 ### What is left, in the order it should be taken
 
-**What is still refused, ranked, is [roadmap.md](roadmap.md)'s.** The four that came out of the
+**What is still refused is filed as RFCs under `rendering`.** The four that came out of the
 upstream skips are done. None of them had ever been refused
 or measured; they were in a column that said upstream had spoken. Each was taken the way this file
 ranks work, the difference first, and none of the four was the construct its symptom named:
@@ -202,7 +202,7 @@ that moves fails the run. See [suite.md](suite.md).
 Stage 1 proved the render; this proves the framework around it the way Kit's own authors exercise
 it, with nothing of this repository's own standing in for an application. Green here is the
 first two of milestone A's checks, and so part of the condition for the first release and, as
-planned, for starting B ([roadmap.md](roadmap.md), "Four milestones, and what accepts each"). B was
+planned, for starting B ([scope.md](scope.md), "Four milestones, and what accepts each"). B was
 taken forward before it, the user's decision ([together.md](together.md)).
 
 Not started before stage 1 was done, which it now is. **It targets SvelteKit 3, not 2.** Kit 3 is
@@ -311,7 +311,7 @@ both ways is upstream's or this machine's. Playwright drives the system's Chrome
 config asks (`channel: 'chrome'`).
 
 **`--kit-root=throw` is the check that no request ran SSR**, milestone A's third
-([roadmap.md](roadmap.md)). Given to `mise run apps` or `mise run compare`, it builds ours with
+(RFC adio2). Given to `mise run apps` or `mise run compare`, it builds ours with
 `SEAM_KIT_ROOT=throw`, under which the dispatcher throws, and says so on stderr, wherever it would
 have handed a render to Kit's own root (`KIT_ROOT_CHECK` in `pkgs/plugin`). Every such request then
 answers differently from Kit's, and `compare` lists each from the server's log by route and status.
@@ -501,7 +501,7 @@ server, which a build gets wrong too wherever a stylesheet selects an option.
 with no knowledge of this compiler, its page rendered per request from what its server `load`
 reads, beside an endpoint, and built with the plugins an ordinary project carries -- Tailwind,
 StyleX, Sentry's, Vercel's adapter -- and packages of the author's own workspace. It is milestone
-A's fourth check ([roadmap.md](roadmap.md)), taken once Kit's apps give the confidence to.
+A's fourth check (RFC adio2), taken once Kit's apps give the confidence to.
 
 **What it will prove that stage 2 cannot.** Kit's test apps were written to exercise Kit, so they
 cover what Kit's authors thought to cover and they are small. An application is neither: its own

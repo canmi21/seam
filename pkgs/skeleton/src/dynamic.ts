@@ -119,7 +119,7 @@ export function contextual(ast: AstNode, walk: Walk): void {
  * Svelte gives `1:1`, `2:2`, so there is no place in this pipeline that is right.
  *
  * Only a relative module, whose source this can read. A package's is a hole, named in
- * spec/roadmap.md.
+ * RFC jf5rl.
  */
 const CHANGED = new Map<string, ReadonlySet<string>>();
 

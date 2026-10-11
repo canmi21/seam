@@ -95,7 +95,7 @@ one. A refusal that says one is a gap that has named the wrong layer.
 to a function of the render input, for reasons about hydration and about two backends. Where
 a sample needs more than that allows, it fails here, and closing it is a decision about that rule
 -- [readings.md](readings.md) holds each under **What the render computes per request, and what
-each item was**, and what is still open is in [roadmap.md](roadmap.md).
+each item was**, and what is still open is filed as RFCs under `rendering`.
 
 **A harness skip is where neither side answered.** Svelte's own render could not be built or run
 here, or the sample's own config could not be read, or the props it names could not be built at
@@ -364,7 +364,7 @@ nobody made -- and a sample skipped because of this runner is a sample nobody ha
 why the reason is written into the list rather than into a count.
 
 **There are no skips of ours.** A refusal is a fail, and what each still refused waits on is in
-[roadmap.md](roadmap.md). Hiding work behind a word that sounds like a boundary is the confusion
+its RFC, filed under `rendering`. Hiding work behind a word that sounds like a boundary is the confusion
 [refusals.md](refusals.md) was written to stop, and a `blocked:` column was that word.
 
 ## What it said the first time it ran, at `svelte@5.57.0`

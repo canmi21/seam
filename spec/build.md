@@ -304,7 +304,7 @@ edit in the browser as it does under Kit's, before any of this.
 
 _Superseded._ **A route's artifact is the program that writes its bytes**, and the IR stops at the
 build ([ir.md](ir.md), "A route is one program"). What decided it is that every backend carries a
-JavaScript engine -- QuickJS in Rust's, Node beside it in D ([roadmap.md](roadmap.md)) -- so a tree
+JavaScript engine -- QuickJS in Rust's, Node beside it in D (RFC c59q8) -- so a tree
 walked in one language calling into the engine once a hole bought nothing a program does not, and
 cost three times Kit's render on `status`. What follows is why the artifact was data, kept because
 its measurement still holds of data: what it argued against was data copied into JavaScript, and a
@@ -426,7 +426,7 @@ runtime bundled as a backend that is not Node would carry it, and holds its byte
 (`quickjs.test.ts` in `pkgs/program`). The runtime's one part that does read the host is
 `hydratable`'s script, which serialises with Svelte's own devalue and hashes with the host's
 sha256; a program makes its table only where a derivation calls `hydratable`, and how a backend that
-is not Node writes that script is C's to answer ([roadmap.md](roadmap.md)).
+is not Node writes that script is C's to answer (RFC aodmv).
 
 **The manifest says which script answers which URL, and nothing about engines.** It said whether
 anything had to be evaluated rather than walked, for a backend choosing whether to embed an engine;
@@ -530,7 +530,7 @@ it drives the Kit build the plugin test already makes, and is owed.
 
 **Several hydration roots on one page is out of scope.** Astro's islands are separate roots with a
 payload each, and Svelte hydrates one root against one payload. The scope line in
-[roadmap.md](roadmap.md) -- after hydration the page is one standard Svelte SPA -- decides it: the
+[scope.md](scope.md) -- after hydration the page is one standard Svelte SPA -- decides it: the
 artifact is one root, and this is recorded because it is the only multi-component shape the
 artifact does not express, so that nobody reads the absence as an omission.
 

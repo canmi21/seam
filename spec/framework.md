@@ -1,6 +1,6 @@
 # The framework layer
 
-[roadmap.md](roadmap.md) draws two lines, and this file is one side of the second of them, the
+[scope.md](scope.md) draws two lines, and this file is one side of the second of them, the
 layer line: the protocol is derive, inject, the IR and what a component may do, and everything
 that makes a page out of a project is the framework around it. This file is that framework. It is
 SvelteKit with one step moved: the arrangement is Kit's, the code is Kit's wherever the code does
@@ -38,8 +38,7 @@ that is the outcome planned for, not the exception.
 
 **The error tree is what the fork has to take that a plugin could not.** Kit renders the branch
 again when a `load` throws, the error page as its leaf, and that render is Kit's root's; CTR takes
-it in milestone A ([roadmap.md](roadmap.md), "A: Kit's place, by an alias, with CTR where SSR
-was"). A component a `load` returns was taken for another -- `load` is Kit's code running per
+it in milestone A (RFC adio2). A component a `load` returns was taken for another -- `load` is Kit's code running per
 request -- and turned out to need only what the build can read of the `load` module and what the
 dispatcher holds; see **A component a `load` returns** below.
 
@@ -54,7 +53,7 @@ never names. No `@seam-js/kit` is published.
 
 **It is not published yet.** The fork tracks Kit's latest release and is used from this repository,
 linked into the author's own projects, until milestone A is accepted, which is its first release
-([roadmap.md](roadmap.md)). How its version relates to
+(RFC adio2). How its version relates to
 Kit's is decided at its first release: under an alias npm checks every peer range against the fork's
 version as if it were Kit's -- `@sveltejs/adapter-node` asks `^3.0.0-next.0` -- so a `0.0.x`
 version would fail them.
@@ -308,7 +307,7 @@ root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imp
      "A boundary that may throw is a block of its own".
 
 **An application moved is not in this order.** It is milestone A's fourth check, `status`;
-[roadmap.md](roadmap.md), and [conformance.md](conformance.md), "Stage 3".
+RFC adio2, and [conformance.md](conformance.md), "Stage 3".
 
 ## What is Kit's code, and what is not
 
@@ -413,7 +412,7 @@ and neither is compiled.
 ## How the plugin was first built
 
 Against Kit 2.70.3 and before the fork; **SvelteKit 3 is the target** above carried each step
-across, and what is left is [roadmap.md](roadmap.md)'s milestones.
+across, and what is left is the milestones, RFC adio2 to RFC c59q8.
 
 1. **Done.** `pkgs/routes`: route ids, the manifest from `src/routes` through Kit's own
    `create_manifest_data` under Kit's own validator, and one generated root per route. The root
@@ -462,7 +461,7 @@ build` runs its server build first and the plugin takes part in that one only: w
    A's second check.
 
 The order is the Node server's. The Rust server [build.md](build.md) is written for is milestones C
-and D of [roadmap.md](roadmap.md), after B, and nothing of it starts before then.
+and D, RFC aodmv and RFC c59q8, after B, and nothing of it starts before then.
 
 ## The comparison that counts
 
