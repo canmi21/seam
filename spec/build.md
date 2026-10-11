@@ -93,7 +93,8 @@ rule.
 behind the response, where its program is run over the props Kit's root was handed and held to the
 bytes Kit wrote. The user's decision ([together.md](together.md)): developing is Kit's -- an edit
 reaches the next request as fast as under Kit, and a page never waits on a compile -- and what the
-build would make of the route is known while the author works rather than at the build.
+build would make of the route is known while the author works rather than at the build. RFC
+0p4pn, which supersedes the dev server's answering with the program, RFC 5k5pj.
 
 It was otherwise for a while: the dev server answered with the program, compiling a route before
 Kit was asked and holding the request until it had. That is in the history and the measurements
