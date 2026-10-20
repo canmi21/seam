@@ -180,7 +180,7 @@ Six refusals, all in `runtime-legacy`, and this is what they are. Read forward:
   has a setter for that key -- which is what `bind:` created.
 - `transform-server.js:194` wraps a caller that uses component bindings in
   `do { $$settled = true; $$inner_renderer = $$renderer.copy(); $$render_inner(...) } while
-(!$$settled)`, then `subsume`.
+  (!$$settled)`, then `subsume`.
 
 So a component binding is not one render. It is a fixed point over the caller's **whole template**,
 and the bytes written _above_ the tag depend on what the child sends back.

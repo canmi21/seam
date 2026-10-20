@@ -195,7 +195,7 @@ the move costs this layer, each a fact of the diff rather than a guess:
   object. `utils/routing.js` still exports `exec`, `find_route`, `parse_route_id` and
   `resolve_route`.
 - **`experimental.async` stays opt-in**: `__SVELTEKIT_SUPPORTS_ASYNC__` is `compilerOptions
-.experimental.async ?? false`, and the runtime reads it only to allow an async `handleError`.
+  .experimental.async ?? false`, and the runtime reads it only to allow an async `handleError`.
   Nothing here assumes the flag.
 
 **The order the move is taken in**, each step measured before the next:
@@ -292,7 +292,7 @@ the move costs this layer, each a fact of the diff rather than a guess:
      Kit's build's to decide, and the carried bundle is a library build, which inlines every asset
      as a `data:` URL whatever the project's limit. So its bundling turns an import that yields a
      URL -- a file Vite counts as an asset, or `?url` -- into a read under `asset:<path from the
-root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imports each
+     root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imports each
      listed file, which Kit's server build answers as it answers the component's own import. A
      worker's `?worker&url` is one of these, written under `_app/immutable/workers/`; a bare
      `?worker` yields a constructor and stays bundled, and so does an import that yields the
@@ -424,7 +424,7 @@ across, and what is left is the milestones, RFC adio2 to RFC c59q8.
    would refuse a layout met without its children. Held byte for byte against Kit's root rendered
    with Kit's props. The compiler's command line finds routes when given none.
 2. **Done.** The plugin, `seam()` beside `sveltekit()` in the project's Vite config. Kit's `vite
-build` runs its server build first and the plugin takes part in that one only: when it starts,
+   build` runs its server build first and the plugin takes part in that one only: when it starts,
    the routes are compiled and the artifacts emitted into the server output as assets, reached by
    the URLs the bundler gives them so an adapter carries them with the program; and Kit's root
    is resolved to a component that renders a page from its artifact -- the route's program called
